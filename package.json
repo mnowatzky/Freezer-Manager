@@ -1,0 +1,17 @@
+{
+  "name": "freezer-manager",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.11.2",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @freezer/api --filter @freezer/web dev",
+    "build": "pnpm -r build",
+    "test": "pnpm --filter @freezer/shared test",
+    "typecheck": "pnpm -r typecheck",
+    "db:generate": "pnpm --filter @freezer/api db:generate",
+    "db:migrate": "pnpm --filter @freezer/api db:migrate",
+    "db:seed": "pnpm --filter @freezer/api db:seed",
+    "zero:generate": "pnpm --filter @freezer/shared zero:generate"
+  }
+}

@@ -1,0 +1,107 @@
+# Production (VPS). TLS and routing are handled by the existing nginx proxy manager (NPM),
+# which reaches these services over the shared external Docker network. No ports are published.
+#
+# NPM proxy hosts (see README → Production):
+#   ${FREEZER_HOST}         → freezer-web:80, custom location /api → freezer-api:3000
+#   ${SYNC_HOST}            → freezer-zero:4848  (enable "Websockets Support")
+#   ${POCKET_ID_HOST}       → freezer-pocket-id:1411
+name: freezer
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    command: ["postgres", "-c", "wal_level=logical"]
+    environment:
+      POSTGRES_USER: freezer
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: freezer
+    volumes: [pgdata:/var/lib/postgresql/data]
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U freezer -d freezer"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  api:
+    build: { context: ., dockerfile: apps/api/Dockerfile }
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      DATABASE_URL: postgres://freezer:${POSTGRES_PASSWORD}@postgres:5432/freezer
+      WEB_ORIGIN: https://${FREEZER_HOST:-freezer.malte-nowatzky.de}
+      # Session cookie for freezer.<domain> and sync.freezer.<domain> (zero-cache forwards it to the API).
+      COOKIE_DOMAIN: ${FREEZER_HOST:-freezer.malte-nowatzky.de}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET}
+      POCKET_ID_URL: https://${POCKET_ID_HOST:-id.malte-nowatzky.de}
+      # Discovery + signup-token API over the Docker network; the token exchange uses the public URL.
+      POCKET_ID_INTERNAL_URL: http://pocket-id:1411
+      POCKET_ID_CLIENT_ID: ${POCKET_ID_CLIENT_ID:?set POCKET_ID_CLIENT_ID}
+      POCKET_ID_CLIENT_SECRET: ${POCKET_ID_CLIENT_SECRET:?set POCKET_ID_CLIENT_SECRET}
+      POCKET_ID_API_KEY: ${POCKET_ID_API_KEY:-}
+      ZERO_API_KEY: ${ZERO_API_KEY:?set ZERO_API_KEY}
+    networks:
+      internal:
+      proxy: { aliases: [freezer-api] }
+    restart: unless-stopped
+
+  zero-cache:
+    image: rocicorp/zero:1.10.0
+    depends_on:
+      postgres: { condition: service_healthy }
+      api: { condition: service_started }
+    environment:
+      ZERO_UPSTREAM_DB: postgres://freezer:${POSTGRES_PASSWORD}@postgres:5432/freezer
+      ZERO_REPLICA_FILE: /data/replica.db
+      ZERO_APP_PUBLICATIONS: zero_app
+      ZERO_ADMIN_PASSWORD: ${ZERO_ADMIN_PASSWORD:?set ZERO_ADMIN_PASSWORD}
+      ZERO_QUERY_URL: http://api:3000/api/zero/query
+      ZERO_MUTATE_URL: http://api:3000/api/zero/mutate
+      ZERO_QUERY_FORWARD_COOKIES: "true"
+      ZERO_MUTATE_FORWARD_COOKIES: "true"
+      ZERO_QUERY_API_KEY: ${ZERO_API_KEY}
+      ZERO_MUTATE_API_KEY: ${ZERO_API_KEY}
+      ZERO_ENABLE_CRUD_MUTATIONS: "false"
+    volumes: [zero-replica:/data]
+    networks:
+      internal:
+      proxy: { aliases: [freezer-zero] }
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        VITE_ZERO_CACHE_URL: https://${SYNC_HOST:-sync.freezer.malte-nowatzky.de}
+        VITE_PUBLIC_URL: https://${FREEZER_HOST:-freezer.malte-nowatzky.de}
+    networks:
+      proxy: { aliases: [freezer-web] }
+    restart: unless-stopped
+
+  pocket-id:
+    image: ghcr.io/pocket-id/pocket-id:v2.18.0
+    environment:
+      APP_URL: https://${POCKET_ID_HOST:-id.malte-nowatzky.de}
+      ENCRYPTION_KEY: ${POCKET_ID_ENCRYPTION_KEY:?set POCKET_ID_ENCRYPTION_KEY}
+      TRUST_PROXY: "true"
+      UI_CONFIG_DISABLED: "true"
+      ALLOW_USER_SIGNUPS: withToken
+      EMAILS_VERIFIED: "true"
+    volumes: [pocket-id-data:/app/data]
+    networks:
+      internal:
+      proxy: { aliases: [freezer-pocket-id] }
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  zero-replica:
+  pocket-id-data:
+
+networks:
+  internal: {}
+  proxy:
+    external: true
+    name: ${PROXY_NETWORK:-npm_proxy}

@@ -1,0 +1,58 @@
+# Local development: infrastructure only. web + api run on the host via `pnpm dev`.
+name: freezer-dev
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    command: ["postgres", "-c", "wal_level=logical"]
+    environment:
+      POSTGRES_USER: freezer
+      POSTGRES_PASSWORD: freezer
+      POSTGRES_DB: freezer
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U freezer -d freezer"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  zero-cache:
+    image: rocicorp/zero:1.10.0
+    depends_on:
+      postgres: { condition: service_healthy }
+    ports: ["4848:4848"]
+    environment:
+      ZERO_UPSTREAM_DB: postgres://freezer:freezer@postgres:5432/freezer
+      ZERO_REPLICA_FILE: /data/replica.db
+      ZERO_APP_PUBLICATIONS: zero_app
+      # The API runs on the host.
+      ZERO_QUERY_URL: http://host.docker.internal:3000/api/zero/query
+      ZERO_MUTATE_URL: http://host.docker.internal:3000/api/zero/mutate
+      ZERO_QUERY_FORWARD_COOKIES: "true"
+      ZERO_MUTATE_FORWARD_COOKIES: "true"
+      ZERO_QUERY_API_KEY: ${ZERO_API_KEY:?set ZERO_API_KEY in .env}
+      ZERO_MUTATE_API_KEY: ${ZERO_API_KEY}
+      ZERO_ENABLE_CRUD_MUTATIONS: "false"
+      # The image runs with NODE_ENV=production, which requires an admin password.
+      ZERO_ADMIN_PASSWORD: ${ZERO_ADMIN_PASSWORD:?set ZERO_ADMIN_PASSWORD in .env}
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    volumes: [zero-replica:/data]
+    restart: unless-stopped
+
+  pocket-id:
+    image: ghcr.io/pocket-id/pocket-id:v2.18.0
+    ports: ["1411:1411"]
+    environment:
+      APP_URL: http://localhost:1411
+      ENCRYPTION_KEY: ${POCKET_ID_ENCRYPTION_KEY:?set POCKET_ID_ENCRYPTION_KEY in .env}
+      TRUST_PROXY: "false"
+      UI_CONFIG_DISABLED: "true"
+      ALLOW_USER_SIGNUPS: withToken
+      EMAILS_VERIFIED: "true"
+    volumes: [pocket-id-data:/app/data]
+
+volumes:
+  pgdata:
+  zero-replica:
+  pocket-id-data:

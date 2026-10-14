@@ -1,0 +1,33 @@
+import { defineQueries, defineQuery } from "@rocicorp/zero";
+import { z } from "zod";
+import "./context";
+import { zql } from "./zero-schema.gen";
+
+// Every query is scoped to freezers the user is a member of. `ctx.userID` comes
+// from the validated session on the server and cannot be forged by the client.
+export const queries = defineQueries({
+  freezers: {
+    mine: defineQuery(({ ctx }) =>
+      zql.freezer.whereExists("members", (m) => m.where("userId", ctx.userID)).orderBy("createdAt", "asc"),
+    ),
+    detail: defineQuery(z.object({ freezerId: z.string() }), ({ args, ctx }) =>
+      zql.freezer
+        .where("id", args.freezerId)
+        .whereExists("members", (m) => m.where("userId", ctx.userID))
+        .related("drawers", (d) => d.orderBy("sortOrder", "asc"))
+        .related("items", (i) => i.orderBy("frozenAt", "asc").orderBy("createdAt", "asc"))
+        .related("suggestions", (s) => s.orderBy("useCount", "desc"))
+        .related("members", (m) => m.related("user").orderBy("joinedAt", "asc"))
+        .related("invites", (i) => i.where("revokedAt", "IS", null).orderBy("createdAt", "desc"))
+        .one(),
+    ),
+  },
+  items: {
+    // Scan target: which of my freezers currently holds container #n?
+    byContainer: defineQuery(z.object({ containerNumber: z.number().int() }), ({ args, ctx }) =>
+      zql.item
+        .where("containerNumber", args.containerNumber)
+        .whereExists("freezer", (f) => f.whereExists("members", (m) => m.where("userId", ctx.userID))),
+    ),
+  },
+});

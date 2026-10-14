@@ -1,0 +1,32 @@
+{
+  "name": "@freezer/shared",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./db-schema": "./src/db-schema.ts",
+    "./zero-schema": "./src/zero-schema.gen.ts",
+    "./context": "./src/context.ts",
+    "./domain": "./src/domain.ts",
+    "./queries": "./src/queries.ts",
+    "./mutators": "./src/mutators.ts",
+    "./i18n": "./src/i18n/de.ts"
+  },
+  "scripts": {
+    "zero:generate": "drizzle-zero generate -c drizzle-zero.config.ts -o src/zero-schema.gen.ts --suppress-defaults-warning --skip-declare",
+    "test": "vitest run",
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@rocicorp/zero": "1.10.0",
+    "drizzle-orm": "0.45.4",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.9",
+    "drizzle-zero": "0.21.0",
+    "kysely": "0.29.6",
+    "postgres": "3.4.9",
+    "typescript": "7.0.2",
+    "vitest": "5.0.4"
+  }
+}
