@@ -1,3 +1,4 @@
+import { MotionConfig } from "motion/react";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { createBrowserRouter, RouterProvider } from "react-router";
@@ -29,8 +30,11 @@ const router = createBrowserRouter([
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <ToastProvider>
-      <RouterProvider router={router} />
-    </ToastProvider>
+    {/* Honors the OS "reduce motion" setting for all springs. */}
+    <MotionConfig reducedMotion="user">
+      <ToastProvider>
+        <RouterProvider router={router} />
+      </ToastProvider>
+    </MotionConfig>
   </StrictMode>,
 );

@@ -26,8 +26,8 @@ export default defineConfig({
         short_name: "Freezer",
         description: "Was ist in welchem Fach eingefroren?",
         lang: "de",
-        theme_color: "#35A9B5",
-        background_color: "#f8fafc",
+        theme_color: "#f6fafa",
+        background_color: "#f6fafa",
         display: "standalone",
         start_url: "/",
         scope: "/",
@@ -36,7 +36,8 @@ export default defineConfig({
         // App shell offline; API, auth callbacks and data are never served from the SW.
         navigateFallback: "/index.html",
         navigateFallbackDenylist: [/^\/api\//],
-        globPatterns: ["**/*.{js,css,html,svg,png,ico,woff2,wasm}"],
+        // Fonts: only the Latin subsets of Google Sans Flex plus the icon font (other scripts load on demand).
+        globPatterns: ["**/*.{js,css,html,svg,png,ico,wasm}", "assets/google-sans-flex-latin*.woff2", "fonts/*.woff2"],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
       },
       devOptions: { enabled: false },

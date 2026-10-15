@@ -1,9 +1,12 @@
 import { de } from "@freezer/shared/i18n";
+import { motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router";
-import { Centered } from "../components/AuthedLayout";
-import { Button } from "../components/ui";
+import { Centered, FullScreenLoading } from "../components/AuthedLayout";
+import { Button, Icon } from "../components/m3";
 import { authClient, signInWithPocketId } from "../lib/auth-client";
+import { motionScheme } from "../theme/motion";
+import { BrandMark } from "./LoginPage";
 
 type InviteInfo = { freezerName: string; signupUrl: string | null };
 
@@ -42,36 +45,56 @@ export function JoinPage() {
     navigate("/", { replace: true });
   };
 
-  if (info === null || isPending) return <Centered>{de.common.loading}</Centered>;
-  if (info === "invalid") return <Centered>{de.join.invalid}</Centered>;
+  if (info === null || isPending) return <FullScreenLoading />;
+  if (info === "invalid")
+    return (
+      <Centered>
+        <div className="flex flex-col items-center gap-3">
+          <Icon name="error" size={40} className="text-error" />
+          {de.join.invalid}
+        </div>
+      </Centered>
+    );
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-sm flex-col items-center justify-center gap-5 p-6 text-center">
-      <img src="/icon.svg" alt="" className="size-20 rounded-3xl shadow" />
-      <h1 className="text-xl font-bold">{de.join.title}</h1>
-      <p className="text-slate-600">{de.join.invitedTo(info.freezerName)}</p>
-      {session ? (
-        <Button className="w-full" disabled={joining} onClick={accept}>
-          {de.join.accept}
-        </Button>
-      ) : (
-        <div className="grid w-full gap-3">
-          <Button onClick={() => void signInWithPocketId(`/join/${token}`)}>{de.join.haveAccount}</Button>
-          {info.signupUrl && (
-            <>
-              <a
-                href={info.signupUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="rounded-lg bg-white px-4 py-2.5 text-sm font-semibold ring-1 ring-slate-300"
-              >
-                {de.join.createAccount}
-              </a>
-              <p className="text-sm text-slate-500">{de.join.createAccountHint}</p>
-            </>
-          )}
-        </div>
-      )}
+    <main className="mx-auto flex min-h-dvh max-w-sm flex-col items-center justify-center gap-6 p-6 text-center">
+      <BrandMark size={88} />
+      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ ...motionScheme.slowSpatial, delay: 0.1 }}>
+        <h1 className="type-headline-medium type-emphasized">{de.join.title}</h1>
+        <p className="type-body-large mt-2 text-on-surface-variant">{de.join.invitedTo(info.freezerName)}</p>
+      </motion.div>
+      <motion.div
+        className="flex w-full flex-col gap-3"
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ ...motionScheme.slowSpatial, delay: 0.2 }}
+      >
+        {session ? (
+          <Button size="m" icon="group" className="w-full" disabled={joining} onClick={accept}>
+            {de.join.accept}
+          </Button>
+        ) : (
+          <>
+            <Button size="m" icon="passkey" className="w-full" onClick={() => void signInWithPocketId(`/join/${token}`)}>
+              {de.join.haveAccount}
+            </Button>
+            {info.signupUrl && (
+              <>
+                <a
+                  href={info.signupUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="state-layer type-title-medium flex h-14 items-center justify-center gap-2 rounded-full text-on-surface-variant ring-1 ring-outline-variant ring-inset"
+                >
+                  <Icon name="person_add" />
+                  {de.join.createAccount}
+                </a>
+                <p className="type-body-small text-on-surface-variant">{de.join.createAccountHint}</p>
+              </>
+            )}
+          </>
+        )}
+      </motion.div>
     </main>
   );
 }

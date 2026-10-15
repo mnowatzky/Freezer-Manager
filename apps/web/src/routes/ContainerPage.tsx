@@ -3,10 +3,10 @@ import { queries } from "@freezer/shared/queries";
 import { useQuery } from "@rocicorp/zero/react";
 import { useEffect, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router";
-import { Centered } from "../components/AuthedLayout";
+import { FullScreenLoading } from "../components/AuthedLayout";
 import { ItemDialog } from "../components/ItemDialog";
 import { ItemSheet } from "../components/ItemSheet";
-import { Button, Sheet } from "../components/ui";
+import { Icon, ListGroup, ListItem, Sheet } from "../components/m3";
 import { useFreezerData } from "../lib/freezer-data";
 
 /**
@@ -30,48 +30,40 @@ export function ContainerPage() {
 
   if (!Number.isSafeInteger(number) || number <= 0) return <Navigate to="/" replace />;
   if (data.freezersLoaded && data.freezers.length === 0) return <Navigate to="/setup" replace />;
-  if (occupantsResult.type !== "complete" && !occupant) return <Centered>{de.common.loading}</Centered>;
+  if (occupantsResult.type !== "complete" && !occupant) return <FullScreenLoading />;
 
   if (occupant) {
-    if (!data.freezer || data.freezer.id !== occupant.freezerId) return <Centered>{de.common.loading}</Centered>;
-    const item = data.freezer.items.find((i) => i.id === occupant.id);
-    if (!item) return <Centered>{de.common.loading}</Centered>;
+    const item = data.freezer?.id === occupant.freezerId ? data.freezer.items.find((i) => i.id === occupant.id) : undefined;
+    if (!data.freezer || !item) return <FullScreenLoading />;
     return (
-      <Centered>
+      <>
+        <FullScreenLoading />
         <ItemSheet freezer={data.freezer} item={item} onClose={close} />
-      </Centered>
+      </>
     );
   }
 
-  const needsChoice = data.freezers.length > 1 && !chosenFreezer;
-  if (needsChoice) {
+  if (data.freezers.length > 1 && !chosenFreezer) {
     return (
-      <Centered>
-        <Sheet title={de.container.title(number)} onClose={close}>
-          <p className="mb-3 text-sm text-slate-600">{de.container.chooseFreezer}</p>
-          <div className="grid gap-2">
-            {data.freezers.map((f) => (
-              <Button
-                key={f.id}
-                variant={f.id === data.activeId ? "primary" : "secondary"}
-                onClick={() => {
-                  data.setActiveId(f.id);
-                  setChosenFreezer(f.id);
-                }}
-              >
-                {f.name}
-              </Button>
-            ))}
-          </div>
-        </Sheet>
-      </Centered>
+      <Sheet open title={de.container.title(number)} onClose={close}>
+        <p className="type-body-medium mb-4 text-on-surface-variant">{de.container.chooseFreezer}</p>
+        <ListGroup>
+          {data.freezers.map((f) => (
+            <ListItem
+              key={f.id}
+              headline={f.name}
+              leading={<Icon name="kitchen" filled={f.id === data.activeId} className="text-primary" />}
+              onClick={() => {
+                data.setActiveId(f.id);
+                setChosenFreezer(f.id);
+              }}
+            />
+          ))}
+        </ListGroup>
+      </Sheet>
     );
   }
 
-  if (!data.freezer) return <Centered>{de.common.loading}</Centered>;
-  return (
-    <Centered>
-      <ItemDialog freezer={data.freezer} containerNumber={number} onClose={close} />
-    </Centered>
-  );
+  if (!data.freezer) return <FullScreenLoading />;
+  return <ItemDialog open freezer={data.freezer} containerNumber={number} onClose={close} />;
 }

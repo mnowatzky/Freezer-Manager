@@ -1,9 +1,11 @@
 import { MAX_DRAWERS } from "@freezer/shared/domain";
 import { de } from "@freezer/shared/i18n";
+import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { useNavigate } from "react-router";
-import { Button, Field, inputClass, PageHeader } from "../components/ui";
+import { Button, IconButton, TextField, TopAppBar } from "../components/m3";
 import { mutators, useCanWrite, useMutate } from "../lib/zero";
+import { motionScheme } from "../theme/motion";
 
 const ACTIVE_KEY = "activeFreezerId";
 
@@ -13,6 +15,7 @@ export function SetupPage() {
   const canWrite = useCanWrite();
   const [name, setName] = useState("");
   const [drawerCount, setDrawerCount] = useState(5);
+  const change = (d: number) => setDrawerCount((n) => Math.min(MAX_DRAWERS, Math.max(1, n + d)));
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,32 +32,42 @@ export function SetupPage() {
   };
 
   return (
-    <>
-      <PageHeader title={de.setup.title} />
-      <form onSubmit={submit} className="mx-auto max-w-md space-y-4 p-4">
-        <Field label={de.setup.name}>
-          <input
-            className={inputClass}
-            value={name}
-            autoFocus
-            placeholder={de.setup.namePlaceholder}
-            onChange={(e) => setName(e.target.value)}
-          />
-        </Field>
-        <Field label={de.setup.drawerCount}>
-          <input
-            type="number"
-            className={inputClass}
-            min={1}
-            max={MAX_DRAWERS}
-            value={drawerCount}
-            onChange={(e) => setDrawerCount(Math.min(MAX_DRAWERS, Math.max(1, Number(e.target.value) || 1)))}
-          />
-        </Field>
-        <Button type="submit" className="w-full" disabled={!name.trim() || !canWrite}>
+    <div className="min-h-dvh">
+      <TopAppBar title={de.setup.title} navigation={<IconButton icon="arrow_back" label={de.common.back} onClick={() => navigate(-1)} />} />
+      <form onSubmit={submit} className="mx-auto flex max-w-md flex-col gap-6 px-4">
+        <TextField label={de.setup.name} value={name} autoFocus leadingIcon="kitchen" supporting={de.setup.namePlaceholder} onChange={(e) => setName(e.target.value)} />
+
+        <div>
+          <div className="type-title-medium mb-3">{de.setup.drawerCount}</div>
+          <div className="flex items-center gap-4">
+            <IconButton icon="remove" label="−" variant="tonal" size={48} onClick={() => change(-1)} />
+            <div className="type-display-small type-emphasized w-12 text-center">{drawerCount}</div>
+            <IconButton icon="add" label="+" variant="tonal" size={48} onClick={() => change(1)} />
+          </div>
+          {/* Preview of the drawers as stacked tiles that spring in/out. */}
+          <div className="mt-5 flex flex-col gap-0.5">
+            <AnimatePresence initial={false}>
+              {Array.from({ length: drawerCount }, (_, i) => (
+                <motion.div
+                  key={i}
+                  layout
+                  className="type-label-large flex h-9 items-center overflow-hidden rounded-xs bg-surface-container-high px-4 text-on-surface-variant first:rounded-t-l last:rounded-b-l"
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 36 }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={motionScheme.defaultSpatial}
+                >
+                  {de.drawerName(i + 1)}
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+        </div>
+
+        <Button type="submit" size="m" icon="check" className="w-full" disabled={!name.trim() || !canWrite}>
           {de.setup.create}
         </Button>
       </form>
-    </>
+    </div>
   );
 }

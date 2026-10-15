@@ -1,11 +1,8 @@
 @import "tailwindcss";
-
-@theme {
-  --color-brand: #35a9b5;
-  --color-brand-light: #76ecff;
-  --color-brand-dark: #23808a;
-}
+@import "./theme/tokens.css";
 
 @media print {
-  .no-print { display: none !important; }
+  .no-print {
+    display: none !important;
+  }
 }

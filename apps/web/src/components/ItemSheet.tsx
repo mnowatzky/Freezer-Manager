@@ -1,89 +1,137 @@
 import { de } from "@freezer/shared/i18n";
-import { useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
+import { useEffect, useRef, useState } from "react";
 import { ageLabel, formatDate, quantityLabel } from "../lib/format";
 import type { FreezerDetail, ItemRow } from "../lib/freezer-data";
 import { mutators, useCanWrite, useMutate } from "../lib/zero";
-import { ItemDialog } from "./ItemDialog";
-import { Button, Sheet } from "./ui";
+import { motionScheme } from "../theme/motion";
+import { ItemForm } from "./ItemDialog";
+import { Button, Icon, IconButton, Sheet } from "./m3";
 
-/** Details of one item with "Entnehmen…" (partial or all) and "Bearbeiten". */
-export function ItemSheet({ freezer, item, onClose }: { freezer: FreezerDetail; item: ItemRow; onClose: () => void }) {
-  const [mode, setMode] = useState<"view" | "take" | "edit">("view");
-  const canWrite = useCanWrite();
-  const drawer = freezer.drawers.find((d) => d.id === item.drawerId);
+type Mode = "view" | "take" | "edit";
 
-  if (mode === "edit") return <ItemDialog freezer={freezer} item={item} onClose={onClose} />;
-  if (mode === "take") return <TakeSheet item={item} onClose={onClose} />;
+/**
+ * One sheet for an item: details → "Entnehmen…" (partial/all) or "Bearbeiten".
+ * Modes swap inside the same sheet, which springs to the new height.
+ */
+export function ItemSheet({ freezer, item, onClose }: { freezer: FreezerDetail; item: ItemRow | undefined; onClose: () => void }) {
+  // Keep showing the last item while the sheet animates out (or if it's deleted remotely).
+  const last = useRef(item);
+  if (item) last.current = item;
+  const shown = item ?? last.current;
+  const [mode, setMode] = useState<Mode>("view");
+  useEffect(() => {
+    if (item) setMode("view");
+  }, [item?.id]);
+
+  const title = mode === "take" ? de.item.takeTitle : mode === "edit" ? de.item.edit : shown?.name;
 
   return (
-    <Sheet title={item.name} onClose={onClose}>
-      <dl className="mb-5 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
-        <dt className="text-slate-500">{de.item.quantity}</dt>
-        <dd>{quantityLabel(item.quantity, item.unit)}</dd>
-        <dt className="text-slate-500">{de.item.drawer}</dt>
-        <dd>{drawer?.name}</dd>
-        {item.containerNumber !== null && (
-          <>
-            <dt className="text-slate-500">{de.item.container}</dt>
-            <dd>#{item.containerNumber}</dd>
-          </>
-        )}
-        <dt className="text-slate-500">{de.item.frozenAt}</dt>
-        <dd>
-          {formatDate(item.frozenAt)} ({ageLabel(item.frozenAt)})
-        </dd>
-        {item.notes && (
-          <>
-            <dt className="text-slate-500">{de.item.notes}</dt>
-            <dd className="whitespace-pre-wrap">{item.notes}</dd>
-          </>
-        )}
-      </dl>
-      <div className="flex flex-wrap justify-end gap-2">
-        <Button variant="secondary" disabled={!canWrite} onClick={() => setMode("edit")}>
-          {de.item.edit}
-        </Button>
-        <Button disabled={!canWrite} onClick={() => setMode("take")}>
-          {de.item.take}
-        </Button>
-      </div>
+    <Sheet open={!!item} title={title} onClose={onClose}>
+      {shown && (
+        <AnimatePresence mode="popLayout" initial={false}>
+          <motion.div
+            key={mode}
+            initial={{ opacity: 0, x: 24 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -24 }}
+            transition={motionScheme.defaultSpatial}
+          >
+            {mode === "view" && <Details freezer={freezer} item={shown} onMode={setMode} />}
+            {mode === "take" && <Take item={shown} onDone={onClose} onBack={() => setMode("view")} />}
+            {mode === "edit" && <ItemForm freezer={freezer} item={shown} onDone={onClose} />}
+          </motion.div>
+        </AnimatePresence>
+      )}
     </Sheet>
   );
 }
 
-function TakeSheet({ item, onClose }: { item: ItemRow; onClose: () => void }) {
+function Details({ freezer, item, onMode }: { freezer: FreezerDetail; item: ItemRow; onMode: (m: Mode) => void }) {
+  const canWrite = useCanWrite();
+  const drawer = freezer.drawers.find((d) => d.id === item.drawerId);
+  const rows: [string, string, React.ReactNode][] = [
+    ["scale", de.item.quantity, quantityLabel(item.quantity, item.unit)],
+    ["shelves", de.item.drawer, drawer?.name],
+    ["calendar_month", de.item.frozenAt, `${formatDate(item.frozenAt)} · ${ageLabel(item.frozenAt)}`],
+  ];
+  if (item.containerNumber !== null) rows.push(["qr_code_2", de.item.container, `#${item.containerNumber}`]);
+  if (item.notes) rows.push(["notes", de.item.notes, <span className="whitespace-pre-wrap">{item.notes}</span>]);
+
+  return (
+    <>
+      <dl className="mb-6 flex flex-col gap-0.5 overflow-hidden rounded-l">
+        {rows.map(([icon, label, value]) => (
+          <div key={label} className="flex items-center gap-4 bg-surface-container px-4 py-3">
+            <Icon name={icon} className="text-on-surface-variant" />
+            <div className="min-w-0">
+              <dt className="type-label-medium text-on-surface-variant">{label}</dt>
+              <dd className="type-body-large">{value}</dd>
+            </div>
+          </div>
+        ))}
+      </dl>
+      <div className="flex justify-end gap-2">
+        <Button variant="tonal" icon="edit" disabled={!canWrite} onClick={() => onMode("edit")}>
+          {de.item.edit}
+        </Button>
+        <Button icon="remove" disabled={!canWrite} onClick={() => onMode("take")}>
+          {de.item.take}
+        </Button>
+      </div>
+    </>
+  );
+}
+
+function Take({ item, onDone, onBack }: { item: ItemRow; onDone: () => void; onBack: () => void }) {
   const mutate = useMutate();
   const canWrite = useCanWrite();
   const step = item.quantity >= 1 && Number.isInteger(item.quantity) ? 1 : item.quantity / 4;
   const [amount, setAmount] = useState(Math.min(step, item.quantity));
   const clamp = (n: number) => Math.min(item.quantity, Math.max(step, Math.round(n * 1000) / 1000));
+  const remaining = Math.max(0, Math.round((item.quantity - amount) * 1000) / 1000);
 
   const take = async (value: number) => {
-    if (await mutate(mutators.item.take({ id: item.id, amount: value }))) onClose();
+    if (await mutate(mutators.item.take({ id: item.id, amount: value }))) onDone();
   };
 
   return (
-    <Sheet title={de.item.takeTitle} onClose={onClose}>
-      <p className="mb-4 text-sm text-slate-500">
+    <>
+      <p className="type-body-medium mb-6 text-on-surface-variant">
         {item.name}: {quantityLabel(item.quantity, item.unit)}
       </p>
-      <div className="mb-5 flex items-center justify-center gap-4">
-        <Button variant="secondary" className="size-12 text-xl" onClick={() => setAmount((a) => clamp(a - step))}>
-          −
-        </Button>
-        <span className="min-w-24 text-center text-2xl font-semibold">{quantityLabel(amount, item.unit)}</span>
-        <Button variant="secondary" className="size-12 text-xl" onClick={() => setAmount((a) => clamp(a + step))}>
-          +
-        </Button>
+      <div className="mb-2 flex items-center justify-center gap-6">
+        <IconButton icon="remove" label="−" variant="tonal" size={56} onClick={() => setAmount((a) => clamp(a - step))} />
+        <div className="min-w-32 text-center">
+          <AnimatePresence mode="popLayout" initial={false}>
+            <motion.div
+              key={amount}
+              className="type-display-small type-emphasized"
+              initial={{ opacity: 0, y: -12, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 12, scale: 0.9 }}
+              transition={motionScheme.fastSpatial}
+            >
+              {quantityLabel(amount, item.unit)}
+            </motion.div>
+          </AnimatePresence>
+        </div>
+        <IconButton icon="add" label="+" variant="tonal" size={56} onClick={() => setAmount((a) => clamp(a + step))} />
       </div>
-      <div className="flex justify-end gap-2">
-        <Button variant="secondary" disabled={!canWrite} onClick={() => take(item.quantity)}>
+      <p className="type-body-small mb-6 text-center text-on-surface-variant">
+        → {quantityLabel(remaining, item.unit)}
+      </p>
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button variant="text" onClick={onBack}>
+          {de.common.back}
+        </Button>
+        <Button variant="tonal" disabled={!canWrite} onClick={() => take(item.quantity)}>
           {de.common.all}
         </Button>
-        <Button disabled={!canWrite} onClick={() => take(amount)}>
+        <Button icon="remove" disabled={!canWrite} onClick={() => take(amount)}>
           {de.item.takeConfirm}
         </Button>
       </div>
-    </Sheet>
+    </>
   );
 }

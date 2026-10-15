@@ -109,6 +109,24 @@ cp .env.example .env
 - **Einstellungen → QR-Etiketten drucken** (`/etiketten?von=1&bis=40`) prints a sticker sheet. The URL origin comes from `VITE_PUBLIC_URL`.
 - The in-app **Scannen** (scan) button uses the camera through a bundled ZXing WASM build, which also works on iOS. You can also type the number.
 
+## Design (Material 3 Expressive)
+
+The UI follows [Material 3 Expressive](https://m3.material.io/). Material Web (`@material/web`) is in maintenance mode and has no Expressive components, so the app has small components of its own in `apps/web/src/components/m3/`, built on the official tokens:
+
+- **Color:**
+  - `src/theme/colors.gen.css` holds the M3 color roles (light and dark), generated from the brand seed `#35A9B5` with `@material/material-color-utilities`, using SchemeTonalSpot and the 2025 spec.
+  - To regenerate it, run `pnpm --filter @freezer/web generate-theme`.
+  - Tailwind exposes the roles as utilities, such as `bg-primary-container` and `text-on-surface-variant`.
+- **Shape and type:** `src/theme/tokens.css` holds the corner scale (including the Expressive `*-increased` steps) and the M3 type scale in Google Sans Flex. Use the `type-*` and `type-emphasized` utilities.
+- **Motion:**
+  - `src/theme/motion.ts` turns the Expressive spring tokens (fast/default/slow × spatial/effects) into Motion springs.
+  - Pressed controls morph their shape.
+  - Lists, sheets, FABs and the app bar animate on these springs.
+  - The OS "reduce motion" setting is respected.
+- **Icons:**
+  - The icons are Material Symbols Rounded as a self-hosted variable-font subset (`public/fonts/`), which works offline and animates the fill on selection.
+  - To add an icon, put its name into `src/theme/icon-names.txt` and run `pnpm --filter @freezer/web fetch-icons`.
+
 ## Production (prepared, not deployed)
 
 `docker-compose.yml` runs **postgres, zero-cache, api, web** (static build served by nginx) and **pocket-id**. Nothing publishes ports. Your existing **nginx proxy manager** handles TLS and reaches the services over the shared external Docker network.

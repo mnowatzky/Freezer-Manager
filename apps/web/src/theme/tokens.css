@@ -1,0 +1,201 @@
+/* Material 3 Expressive design tokens (color roles generated, shape/type/motion from the M3 spec). */
+@import "@fontsource-variable/google-sans-flex/rond.css";
+@import "./colors.gen.css";
+
+@font-face {
+  font-family: "Material Symbols Rounded";
+  font-style: normal;
+  font-weight: 100 700;
+  font-display: block;
+  /* Subset to the icons in icon-names.txt (see README → Design). */
+  src: url(/fonts/material-symbols-rounded.woff2) format("woff2");
+}
+
+:root {
+  /* Shape: M3 corner radius scale (Expressive adds the *-increased steps) */
+  --md-sys-shape-corner-none: 0px;
+  --md-sys-shape-corner-extra-small: 4px;
+  --md-sys-shape-corner-small: 8px;
+  --md-sys-shape-corner-medium: 12px;
+  --md-sys-shape-corner-large: 16px;
+  --md-sys-shape-corner-large-increased: 20px;
+  --md-sys-shape-corner-extra-large: 28px;
+  --md-sys-shape-corner-extra-large-increased: 32px;
+  --md-sys-shape-corner-extra-extra-large: 48px;
+  --md-sys-shape-corner-full: 9999px;
+
+  /* State layer opacities */
+  --md-sys-state-hover: 0.08;
+  --md-sys-state-focus: 0.1;
+  --md-sys-state-pressed: 0.1;
+
+  --md-ref-typeface: "Google Sans Flex Variable", "Google Sans Flex", system-ui, sans-serif;
+}
+
+/* Tailwind theme: expose M3 roles as utilities (bg-primary, text-on-surface-variant, rounded-l, …) */
+@theme {
+  --font-sans: var(--md-ref-typeface);
+
+  --color-primary: var(--md-sys-color-primary);
+  --color-on-primary: var(--md-sys-color-on-primary);
+  --color-primary-container: var(--md-sys-color-primary-container);
+  --color-on-primary-container: var(--md-sys-color-on-primary-container);
+  --color-secondary: var(--md-sys-color-secondary);
+  --color-on-secondary: var(--md-sys-color-on-secondary);
+  --color-secondary-container: var(--md-sys-color-secondary-container);
+  --color-on-secondary-container: var(--md-sys-color-on-secondary-container);
+  --color-tertiary: var(--md-sys-color-tertiary);
+  --color-on-tertiary: var(--md-sys-color-on-tertiary);
+  --color-tertiary-container: var(--md-sys-color-tertiary-container);
+  --color-on-tertiary-container: var(--md-sys-color-on-tertiary-container);
+  --color-error: var(--md-sys-color-error);
+  --color-on-error: var(--md-sys-color-on-error);
+  --color-error-container: var(--md-sys-color-error-container);
+  --color-on-error-container: var(--md-sys-color-on-error-container);
+  --color-surface: var(--md-sys-color-surface);
+  --color-on-surface: var(--md-sys-color-on-surface);
+  --color-on-surface-variant: var(--md-sys-color-on-surface-variant);
+  --color-surface-container-lowest: var(--md-sys-color-surface-container-lowest);
+  --color-surface-container-low: var(--md-sys-color-surface-container-low);
+  --color-surface-container: var(--md-sys-color-surface-container);
+  --color-surface-container-high: var(--md-sys-color-surface-container-high);
+  --color-surface-container-highest: var(--md-sys-color-surface-container-highest);
+  --color-inverse-surface: var(--md-sys-color-inverse-surface);
+  --color-inverse-on-surface: var(--md-sys-color-inverse-on-surface);
+  --color-inverse-primary: var(--md-sys-color-inverse-primary);
+  --color-outline: var(--md-sys-color-outline);
+  --color-outline-variant: var(--md-sys-color-outline-variant);
+  --color-scrim: var(--md-sys-color-scrim);
+
+  --radius-xs: var(--md-sys-shape-corner-extra-small);
+  --radius-s: var(--md-sys-shape-corner-small);
+  --radius-m: var(--md-sys-shape-corner-medium);
+  --radius-l: var(--md-sys-shape-corner-large);
+  --radius-li: var(--md-sys-shape-corner-large-increased);
+  --radius-xl: var(--md-sys-shape-corner-extra-large);
+  --radius-xli: var(--md-sys-shape-corner-extra-large-increased);
+  --radius-xxl: var(--md-sys-shape-corner-extra-extra-large);
+}
+
+/* M3 type scale (Google Sans Flex). Emphasized variants are heavier and rounder (Expressive). */
+@utility type-display-small {
+  font-size: 36px;
+  line-height: 44px;
+  font-weight: 400;
+}
+@utility type-headline-large {
+  font-size: 32px;
+  line-height: 40px;
+  font-weight: 400;
+}
+@utility type-headline-medium {
+  font-size: 28px;
+  line-height: 36px;
+  font-weight: 400;
+}
+@utility type-headline-small {
+  font-size: 24px;
+  line-height: 32px;
+  font-weight: 400;
+}
+@utility type-title-large {
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 400;
+}
+@utility type-title-medium {
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 500;
+  letter-spacing: 0.15px;
+}
+@utility type-title-small {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  letter-spacing: 0.1px;
+}
+@utility type-body-large {
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 400;
+  letter-spacing: 0.5px;
+}
+@utility type-body-medium {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 400;
+  letter-spacing: 0.25px;
+}
+@utility type-body-small {
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 400;
+  letter-spacing: 0.4px;
+}
+@utility type-label-large {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  letter-spacing: 0.1px;
+}
+@utility type-label-medium {
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+}
+@utility type-label-small {
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+}
+@utility type-emphasized {
+  font-weight: 650;
+  font-variation-settings: "ROND" 100;
+}
+
+/* State layer: an overlay in the content color, shown on hover/focus/press. */
+@utility state-layer {
+  position: relative;
+  isolation: isolate;
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: currentColor;
+    opacity: 0;
+    transition: opacity 150ms linear;
+    pointer-events: none;
+    z-index: -1;
+  }
+  @media (hover: hover) {
+    &:hover::before {
+      opacity: var(--md-sys-state-hover);
+    }
+  }
+  &:focus-visible::before {
+    opacity: var(--md-sys-state-focus);
+  }
+  &:active::before {
+    opacity: var(--md-sys-state-pressed);
+  }
+}
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    background: var(--md-sys-color-surface);
+    color: var(--md-sys-color-on-surface);
+    font-family: var(--md-ref-typeface);
+    -webkit-font-smoothing: antialiased;
+  }
+  :focus-visible {
+    outline: 3px solid var(--md-sys-color-secondary);
+    outline-offset: 2px;
+  }
+}

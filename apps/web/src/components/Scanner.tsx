@@ -1,19 +1,30 @@
 import { parseContainerCode } from "@freezer/shared/domain";
 import { de } from "@freezer/shared/i18n";
 import { BarcodeDetector, prepareZXingModule } from "barcode-detector/ponyfill";
+import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import wasmUrl from "zxing-wasm/reader/zxing_reader.wasm?url";
-import { Button, inputClass, Sheet } from "./ui";
+import { motionScheme } from "../theme/motion";
+import { Button, Icon, Sheet, TextField } from "./m3";
 
 // Serve the ZXing WASM from our own origin (precached by the service worker) instead of a CDN.
 prepareZXingModule({
   overrides: { locateFile: (path: string, prefix: string) => (path.endsWith(".wasm") ? wasmUrl : prefix + path) },
 });
 
-/** Camera QR scanner with manual number entry as an equal alternative. */
-export function Scanner({ onResult, onClose }: { onResult: (n: number) => void; onClose: () => void }) {
+/** Camera QR scanner sheet with manual number entry as an equal alternative. */
+export function Scanner({ open, onResult, onClose }: { open: boolean; onResult: (n: number) => void; onClose: () => void }) {
+  return (
+    <Sheet open={open} title={de.scanner.title} onClose={onClose}>
+      <ScannerBody onResult={onResult} />
+    </Sheet>
+  );
+}
+
+function ScannerBody({ onResult }: { onResult: (n: number) => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [cameraError, setCameraError] = useState(false);
+  const [ready, setReady] = useState(false);
   const [manual, setManual] = useState("");
   const [invalid, setInvalid] = useState(false);
 
@@ -29,6 +40,7 @@ export function Scanner({ onResult, onClose }: { onResult: (n: number) => void; 
         if (cancelled || !videoRef.current) return;
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
+        setReady(true);
         const tick = async () => {
           if (cancelled || !videoRef.current) return;
           try {
@@ -64,24 +76,49 @@ export function Scanner({ onResult, onClose }: { onResult: (n: number) => void; 
   };
 
   return (
-    <Sheet title={de.scanner.title} onClose={onClose}>
+    <>
       {cameraError ? (
-        <p className="mb-4 text-sm text-slate-500">{de.scanner.noCamera}</p>
+        <div className="type-body-medium mb-4 flex items-center gap-3 rounded-l bg-surface-container px-4 py-3 text-on-surface-variant">
+          <Icon name="error" />
+          {de.scanner.noCamera}
+        </div>
       ) : (
-        <video ref={videoRef} className="mb-4 aspect-square w-full rounded-xl bg-black object-cover" muted playsInline />
+        <div className="relative mb-4 aspect-square w-full overflow-hidden rounded-xl bg-inverse-surface">
+          <video ref={videoRef} className="size-full object-cover" muted playsInline />
+          {/* Viewfinder frame that "breathes" on the slow spatial spring while scanning. */}
+          <motion.div
+            className="pointer-events-none absolute inset-[18%] rounded-xli ring-4 ring-primary-container"
+            initial={{ opacity: 0, scale: 1.15 }}
+            animate={ready ? { opacity: 1, scale: [1, 0.96, 1] } : { opacity: 0.4, scale: 1 }}
+            transition={ready ? { scale: { repeat: Infinity, duration: 2.4, ease: "easeInOut" }, opacity: motionScheme.defaultEffects } : motionScheme.slowSpatial}
+          />
+        </div>
       )}
-      {invalid && <p className="mb-2 text-sm text-red-600">{de.scanner.invalid}</p>}
-      <form onSubmit={submitManual} className="flex gap-2">
-        <input
-          className={inputClass}
+      <AnimatePresence>
+        {invalid && (
+          <motion.p
+            className="type-body-medium mb-3 text-error"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={motionScheme.defaultSpatial}
+          >
+            {de.scanner.invalid}
+          </motion.p>
+        )}
+      </AnimatePresence>
+      <form onSubmit={submitManual} className="flex items-start gap-2">
+        <TextField
+          className="flex-1"
+          label={de.scanner.manual}
+          leadingIcon="keyboard"
           inputMode="numeric"
           pattern="[0-9]*"
-          placeholder={de.scanner.manual}
           value={manual}
           onChange={(e) => setManual(e.target.value)}
         />
-        <Button type="submit">{de.scanner.open}</Button>
+        <Button type="submit" size="m" icon="arrow_forward" aria-label={de.scanner.open} className="px-4" />
       </form>
-    </Sheet>
+    </>
   );
 }

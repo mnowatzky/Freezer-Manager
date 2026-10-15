@@ -1,21 +1,23 @@
 import { de } from "@freezer/shared/i18n";
+import { AnimatePresence, motion, useMotionValueEvent, useScroll } from "motion/react";
 import { useMemo, useState } from "react";
-import { Link, Navigate, useNavigate } from "react-router";
-import { Centered } from "../components/AuthedLayout";
+import { Navigate, useNavigate } from "react-router";
+import { FullScreenLoading } from "../components/AuthedLayout";
 import { ItemDialog } from "../components/ItemDialog";
 import { ItemSheet } from "../components/ItemSheet";
+import { Chip, ConnectedButtonGroup, Fab, Icon, IconButton, ListGroup, ListItem, Sheet, TopAppBar } from "../components/m3";
 import { Scanner } from "../components/Scanner";
-import { Button, inputClass, PageHeader } from "../components/ui";
 import { ageLabel, quantityLabel } from "../lib/format";
 import { useFreezerData, type FreezerDetail, type ItemRow } from "../lib/freezer-data";
 import { useCanWrite } from "../lib/zero";
+import { motionScheme } from "../theme/motion";
 
 type View = "drawer" | "date" | "name";
 
 export function HomePage() {
   const data = useFreezerData();
   if (data.freezersLoaded && data.freezers.length === 0) return <Navigate to="/setup" replace />;
-  if (!data.freezer) return <Centered>{data.detailLoaded && data.freezersLoaded ? null : de.common.loading}</Centered>;
+  if (!data.freezer) return <FullScreenLoading />;
   return <FreezerView data={data} freezer={data.freezer} />;
 }
 
@@ -24,9 +26,17 @@ function FreezerView({ data, freezer }: { data: ReturnType<typeof useFreezerData
   const canWrite = useCanWrite();
   const [view, setView] = useState<View>("drawer");
   const [search, setSearch] = useState("");
-  const [dialog, setDialog] = useState<"freeze" | "scan" | null>(null);
+  const [dialog, setDialog] = useState<"freeze" | "scan" | "switch" | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = freezer.items.find((i) => i.id === selectedId);
+
+  // Extended FAB collapses while scrolling down, expands when scrolling up (M3 behavior).
+  const { scrollY } = useScroll();
+  const [fabExtended, setFabExtended] = useState(true);
+  useMotionValueEvent(scrollY, "change", (y) => {
+    const prev = scrollY.getPrevious() ?? 0;
+    if (Math.abs(y - prev) > 4) setFabExtended(y < prev || y < 40);
+  });
 
   const items = useMemo(() => {
     const q = search.trim().toLocaleLowerCase("de");
@@ -36,74 +46,66 @@ function FreezerView({ data, freezer }: { data: ReturnType<typeof useFreezerData
   }, [freezer.items, search, view]);
 
   return (
-    <div className="min-h-dvh pb-28">
-      <PageHeader
-        title={
-          data.freezers.length > 1 ? (
-            <select
-              aria-label={de.freezer.switchFreezer}
-              className="max-w-full truncate bg-transparent font-semibold outline-none [&>option]:text-slate-900"
-              value={freezer.id}
-              onChange={(e) => data.setActiveId(e.target.value)}
-            >
-              {data.freezers.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.name}
-                </option>
-              ))}
-            </select>
-          ) : (
-            freezer.name
-          )
-        }
-        right={
-          <Link to="/einstellungen" className="rounded-lg px-2 py-1 text-xl" aria-label={de.freezer.settings}>
-            ⚙︎
-          </Link>
+    <div className="min-h-dvh pb-40">
+      <TopAppBar
+        title={freezer.name}
+        subtitle={de.freezer.itemCount(freezer.items.length)}
+        actions={
+          <>
+            {data.freezers.length > 1 && (
+              <IconButton icon="kitchen" label={de.freezer.switchFreezer} onClick={() => setDialog("switch")} />
+            )}
+            <IconButton icon="settings" label={de.freezer.settings} onClick={() => navigate("/einstellungen")} />
+          </>
         }
       />
 
-      <div className="mx-auto max-w-2xl space-y-3 p-4">
-        <input
-          type="search"
-          className={inputClass}
-          placeholder={de.freezer.search}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+      <div className="mx-auto flex max-w-2xl flex-col gap-4 px-4">
+        <label className="flex h-14 items-center gap-3 rounded-full bg-surface-container-high px-4 focus-within:ring-2 focus-within:ring-primary">
+          <Icon name="search" className="text-on-surface-variant" />
+          <input
+            type="search"
+            className="type-body-large min-w-0 flex-1 bg-transparent outline-none placeholder:text-on-surface-variant"
+            placeholder={de.freezer.search}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </label>
+
+        <ConnectedButtonGroup
+          label={de.freezer.view}
+          value={view}
+          onChange={setView}
+          options={[
+            { value: "drawer", label: de.freezer.viewDrawer, icon: "shelves" },
+            { value: "date", label: de.freezer.viewDate, icon: "calendar_month" },
+            { value: "name", label: de.freezer.viewName, icon: "sort_by_alpha" },
+          ]}
         />
-        <div className="flex gap-1 rounded-lg bg-slate-200 p-1 text-sm">
-          {(
-            [
-              ["drawer", de.freezer.groupByDrawer],
-              ["date", de.freezer.sortByDate],
-              ["name", de.freezer.sortByName],
-            ] as const
-          ).map(([v, label]) => (
-            <button
-              key={v}
-              className={`flex-1 rounded-md px-2 py-1.5 font-medium ${view === v ? "bg-white shadow" : "text-slate-600"}`}
-              onClick={() => setView(v)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
 
-        {freezer.items.length === 0 && <p className="py-8 text-center text-slate-500">{de.freezer.noItems}</p>}
-
-        {view === "drawer" ? (
+        {freezer.items.length === 0 ? (
+          <EmptyState icon="ac_unit" title={de.freezer.noItems} hint={de.freezer.noItemsHint} />
+        ) : items.length === 0 ? (
+          <EmptyState icon="search" title={de.freezer.noResults} />
+        ) : view === "drawer" ? (
           freezer.drawers.map((d) => {
             const inDrawer = items.filter((i) => i.drawerId === d.id);
             if (search && inDrawer.length === 0) return null;
             return (
-              <section key={d.id}>
-                <h2 className="mt-4 mb-1 text-sm font-semibold tracking-wide text-slate-500 uppercase">{d.name}</h2>
+              <motion.section key={d.id} layout="position" transition={motionScheme.defaultSpatial}>
+                <h2 className="type-title-small mt-2 mb-2 flex items-center gap-2 px-1 text-primary">
+                  <Icon name="shelves" size={18} />
+                  {d.name}
+                  <span className="type-label-medium text-on-surface-variant">· {inDrawer.length}</span>
+                </h2>
                 {inDrawer.length === 0 ? (
-                  <p className="px-1 text-sm text-slate-400">{de.freezer.empty}</p>
+                  <p className="type-body-medium rounded-li bg-surface-container-low px-4 py-4 text-on-surface-variant">
+                    {de.freezer.empty}
+                  </p>
                 ) : (
                   <ItemList items={inDrawer} onSelect={setSelectedId} />
                 )}
-              </section>
+              </motion.section>
             );
           })
         ) : (
@@ -111,51 +113,89 @@ function FreezerView({ data, freezer }: { data: ReturnType<typeof useFreezerData
         )}
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 flex justify-center gap-3 bg-gradient-to-t from-slate-50 via-slate-50 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-        <Button variant="secondary" className="flex-1 py-3.5 sm:flex-none" onClick={() => setDialog("scan")}>
-          {de.freezer.scan}
-        </Button>
-        <Button className="flex-1 py-3.5 sm:flex-none" disabled={!canWrite} onClick={() => setDialog("freeze")}>
-          {de.freezer.freeze}
-        </Button>
+      {/* FAB stack: secondary "Scannen" above the extended primary "Einfrieren". */}
+      <div className="fixed right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-20 flex flex-col items-end gap-3">
+        <Fab icon="qr_code_scanner" label={de.freezer.scan} variant="secondary" size="s" onClick={() => setDialog("scan")} />
+        <Fab icon="ac_unit" label={de.freezer.freeze} extended={fabExtended} disabled={!canWrite} onClick={() => setDialog("freeze")} />
       </div>
 
-      {dialog === "freeze" && <ItemDialog freezer={freezer} onClose={() => setDialog(null)} />}
-      {dialog === "scan" && <Scanner onResult={(n) => navigate(`/c/${n}`)} onClose={() => setDialog(null)} />}
-      {selected && <ItemSheet freezer={freezer} item={selected} onClose={() => setSelectedId(null)} />}
+      <ItemDialog open={dialog === "freeze"} freezer={freezer} onClose={() => setDialog(null)} />
+      <Scanner open={dialog === "scan"} onResult={(n) => navigate(`/c/${n}`)} onClose={() => setDialog(null)} />
+      <ItemSheet freezer={freezer} item={selected} onClose={() => setSelectedId(null)} />
+      <Sheet open={dialog === "switch"} title={de.freezer.switchFreezer} onClose={() => setDialog(null)}>
+        <ListGroup>
+          {data.freezers.map((f) => (
+            <ListItem
+              key={f.id}
+              headline={f.name}
+              leading={<Icon name="kitchen" filled={f.id === freezer.id} className="text-primary" />}
+              trailing={f.id === freezer.id ? <Icon name="check" className="text-primary" /> : undefined}
+              onClick={() => {
+                data.setActiveId(f.id);
+                setDialog(null);
+              }}
+            />
+          ))}
+        </ListGroup>
+      </Sheet>
     </div>
   );
 }
 
-function ItemList({
-  items,
-  onSelect,
-  drawers,
-}: {
-  items: ItemRow[];
-  onSelect: (id: string) => void;
-  drawers?: FreezerDetail["drawers"];
-}) {
+function ItemList({ items, onSelect, drawers }: { items: ItemRow[]; onSelect: (id: string) => void; drawers?: FreezerDetail["drawers"] }) {
   return (
-    <ul className="divide-y divide-slate-100 overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
-      {items.map((item) => (
-        <li key={item.id}>
-          <button className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-slate-50" onClick={() => onSelect(item.id)}>
-            <div className="min-w-0 flex-1">
-              <div className="truncate font-medium">{item.name}</div>
-              <div className="text-sm text-slate-500">
+    <ListGroup>
+      <AnimatePresence initial={false} mode="popLayout">
+        {items.map((item) => (
+          <ListItem
+            key={item.id}
+            onClick={() => onSelect(item.id)}
+            leading={<Monogram name={item.name} />}
+            headline={item.name}
+            supporting={
+              <>
                 {quantityLabel(item.quantity, item.unit)} · {ageLabel(item.frozenAt)}
                 {drawers && ` · ${drawers.find((d) => d.id === item.drawerId)?.name ?? ""}`}
-              </div>
-            </div>
-            {item.containerNumber !== null && (
-              <span className="rounded-full bg-brand-light/40 px-2.5 py-1 text-sm font-semibold text-brand-dark">
-                #{item.containerNumber}
-              </span>
-            )}
-          </button>
-        </li>
-      ))}
-    </ul>
+              </>
+            }
+            trailing={item.containerNumber !== null ? <Chip icon="qr_code_2">{item.containerNumber}</Chip> : undefined}
+          />
+        ))}
+      </AnimatePresence>
+    </ListGroup>
+  );
+}
+
+/** Leading monogram in an Expressive "cookie" shape container. */
+function Monogram({ name }: { name: string }) {
+  return (
+    <span
+      className="type-title-medium type-emphasized flex size-10 shrink-0 items-center justify-center bg-secondary-container text-on-secondary-container"
+      style={{ borderRadius: "42% 58% 46% 54% / 50% 44% 56% 50%" }}
+    >
+      {name.trim().charAt(0).toLocaleUpperCase("de")}
+    </span>
+  );
+}
+
+function EmptyState({ icon, title, hint }: { icon: string; title: string; hint?: string }) {
+  return (
+    <motion.div
+      className="flex flex-col items-center gap-3 py-12 text-center"
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={motionScheme.slowSpatial}
+    >
+      <motion.div
+        className="flex size-24 items-center justify-center bg-primary-container text-on-primary-container"
+        style={{ borderRadius: "38%" }}
+        animate={{ rotate: [0, 8, -8, 0] }}
+        transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+      >
+        <Icon name={icon} size={48} />
+      </motion.div>
+      <div className="type-title-large">{title}</div>
+      {hint && <div className="type-body-medium max-w-xs text-on-surface-variant">{hint}</div>}
+    </motion.div>
   );
 }
