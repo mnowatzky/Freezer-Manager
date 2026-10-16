@@ -1,5 +1,5 @@
 import { motion } from "motion/react";
-import type { ReactNode, Ref } from "react";
+import type { ReactNode } from "react";
 import { motionScheme } from "../../theme/motion";
 
 /**
@@ -17,15 +17,12 @@ export function ListItem({
   leading,
   trailing,
   onClick,
-  ref,
 }: {
   headline: ReactNode;
   supporting?: ReactNode;
   leading?: ReactNode;
   trailing?: ReactNode;
   onClick?: () => void;
-  /** Forwarded so AnimatePresence's popLayout mode can measure exiting items. */
-  ref?: Ref<HTMLLIElement>;
 }) {
   const content = (
     <>
@@ -39,7 +36,6 @@ export function ListItem({
   );
   return (
     <motion.li
-      ref={ref}
       layout
       initial={{ opacity: 0, scale: 0.96 }}
       animate={{ opacity: 1, scale: 1 }}

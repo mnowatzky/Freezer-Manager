@@ -145,7 +145,7 @@ function FreezerView({ data, freezer }: { data: ReturnType<typeof useFreezerData
 function ItemList({ items, onSelect, drawers }: { items: ItemRow[]; onSelect: (id: string) => void; drawers?: FreezerDetail["drawers"] }) {
   return (
     <ListGroup>
-      <AnimatePresence initial={false} mode="popLayout">
+      <AnimatePresence initial={false}>
         {items.map((item) => (
           <ListItem
             key={item.id}

@@ -5,3 +5,5 @@ dist
 .DS_Store
 apps/web/dev-dist
 *.tsbuildinfo
+.claude/settings.local.json
+.playwright-mcp/

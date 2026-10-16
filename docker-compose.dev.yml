@@ -52,6 +52,7 @@ services:
       ALLOW_USER_SIGNUPS: withToken
       EMAILS_VERIFIED: "true"
     volumes: [pocket-id-data:/app/data]
+    restart: unless-stopped
 
 volumes:
   pgdata:

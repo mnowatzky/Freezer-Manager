@@ -1,0 +1,4 @@
+#!/bin/sh
+# Derives the WebSocket origin of zero-cache for the CSP (https://x → wss://x, http://x → ws://x).
+: "${ZERO_ORIGIN:?set ZERO_ORIGIN to the public zero-cache origin, e.g. https://sync.example.com}"
+export ZERO_WS_ORIGIN="$(printf '%s' "$ZERO_ORIGIN" | sed -e 's|^https://|wss://|' -e 's|^http://|ws://|')"

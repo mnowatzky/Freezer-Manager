@@ -96,7 +96,7 @@ export function ItemForm({ freezer, item, containerNumber = null, onDone }: Form
               transition={motionScheme.defaultSpatial}
             >
               <div className="h-1 w-full" />
-              <AnimatePresence initial={false} mode="popLayout">
+              <AnimatePresence initial={false}>
                 {suggestions.map((s) => (
                   <motion.div
                     key={s.id}

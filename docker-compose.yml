@@ -2,10 +2,16 @@
 # which reaches these services over the shared external Docker network. No ports are published.
 #
 # NPM proxy hosts (see README → Production):
-#   ${FREEZER_HOST}         → freezer-web:80, custom location /api → freezer-api:3000
+#   ${FREEZER_HOST}         → freezer-web:8080, custom location /api → freezer-api:3000
 #   ${SYNC_HOST}            → freezer-zero:4848  (enable "Websockets Support")
 #   ${POCKET_ID_HOST}       → freezer-pocket-id:1411
+#
+# Startup order (via healthchecks): postgres → migrate (one-off) → api → zero-cache.
 name: freezer
+
+x-api-build: &api-build
+  build: { context: ., dockerfile: apps/api/Dockerfile }
+  image: freezer-api:${IMAGE_TAG:-latest}
 
 services:
   postgres:
@@ -24,10 +30,23 @@ services:
       retries: 20
     restart: unless-stopped
 
-  api:
-    build: { context: ., dockerfile: apps/api/Dockerfile }
+  # One-off: applies pending Drizzle migrations (incl. the zero_app publication), then exits.
+  # api and zero-cache only start after it finished successfully.
+  migrate:
+    <<: *api-build
+    command: ["node", "--enable-source-maps", "dist/migrate.mjs"]
     depends_on:
       postgres: { condition: service_healthy }
+    environment:
+      DATABASE_URL: postgres://freezer:${POSTGRES_PASSWORD}@postgres:5432/freezer
+    networks: [internal]
+    restart: "no"
+
+  api:
+    <<: *api-build
+    depends_on:
+      postgres: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
     environment:
       DATABASE_URL: postgres://freezer:${POSTGRES_PASSWORD}@postgres:5432/freezer
       WEB_ORIGIN: https://${FREEZER_HOST:-freezer.malte-nowatzky.de}
@@ -41,6 +60,7 @@ services:
       POCKET_ID_CLIENT_SECRET: ${POCKET_ID_CLIENT_SECRET:?set POCKET_ID_CLIENT_SECRET}
       POCKET_ID_API_KEY: ${POCKET_ID_API_KEY:-}
       ZERO_API_KEY: ${ZERO_API_KEY:?set ZERO_API_KEY}
+    # Healthcheck: defined in apps/api/Dockerfile (GET /api/health).
     networks:
       internal:
       proxy: { aliases: [freezer-api] }
@@ -49,8 +69,8 @@ services:
   zero-cache:
     image: rocicorp/zero:1.10.0
     depends_on:
-      postgres: { condition: service_healthy }
-      api: { condition: service_started }
+      migrate: { condition: service_completed_successfully }
+      api: { condition: service_healthy }
     environment:
       ZERO_UPSTREAM_DB: postgres://freezer:${POSTGRES_PASSWORD}@postgres:5432/freezer
       ZERO_REPLICA_FILE: /data/replica.db
@@ -64,6 +84,13 @@ services:
       ZERO_MUTATE_API_KEY: ${ZERO_API_KEY}
       ZERO_ENABLE_CRUD_MUTATIONS: "false"
     volumes: [zero-replica:/data]
+    healthcheck:
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1:4848/"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      # Initial replication of the database can take a while.
+      start_period: 60s
     networks:
       internal:
       proxy: { aliases: [freezer-zero] }
@@ -76,6 +103,11 @@ services:
       args:
         VITE_ZERO_CACHE_URL: https://${SYNC_HOST:-sync.freezer.malte-nowatzky.de}
         VITE_PUBLIC_URL: https://${FREEZER_HOST:-freezer.malte-nowatzky.de}
+    image: freezer-web:${IMAGE_TAG:-latest}
+    environment:
+      # Allowed in the Content-Security-Policy (connect-src, https + wss).
+      ZERO_ORIGIN: https://${SYNC_HOST:-sync.freezer.malte-nowatzky.de}
+    # Healthcheck: defined in apps/web/Dockerfile (GET /healthz).
     networks:
       proxy: { aliases: [freezer-web] }
     restart: unless-stopped
@@ -90,6 +122,12 @@ services:
       ALLOW_USER_SIGNUPS: withToken
       EMAILS_VERIFIED: "true"
     volumes: [pocket-id-data:/app/data]
+    healthcheck:
+      test: ["CMD", "/app/pocket-id", "healthcheck"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     networks:
       internal:
       proxy: { aliases: [freezer-pocket-id] }

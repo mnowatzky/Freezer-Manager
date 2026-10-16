@@ -45,7 +45,7 @@ function Settings({ freezer, userId }: { freezer: FreezerDetail; userId: string 
         <section>
           <SectionTitle icon="group">{de.settings.members}</SectionTitle>
           <ListGroup>
-            <AnimatePresence initial={false} mode="popLayout">
+            <AnimatePresence initial={false}>
               {freezer.members.map((m) => (
                 <ListItem
                   key={m.userId}
@@ -84,7 +84,7 @@ function Settings({ freezer, userId }: { freezer: FreezerDetail; userId: string 
               </Button>
             </div>
             <div className="flex flex-col gap-3">
-              <AnimatePresence initial={false} mode="popLayout">
+              <AnimatePresence initial={false}>
                 {invites.map((inv) => (
                   <InviteCard
                     key={inv.id}
@@ -146,7 +146,7 @@ function SectionTitle({ icon, children, className = "mb-3" }: { icon: string; ch
   );
 }
 
-function InviteCard({ token, expiresAt, onRevoke, ref }: { token: string; expiresAt: number; onRevoke: () => void; ref?: React.Ref<HTMLDivElement> }) {
+function InviteCard({ token, expiresAt, onRevoke }: { token: string; expiresAt: number; onRevoke: () => void }) {
   const url = `${location.origin}/join/${token}`;
   const [qr, setQr] = useState<string>();
   const [copied, setCopied] = useState(false);
@@ -157,7 +157,6 @@ function InviteCard({ token, expiresAt, onRevoke, ref }: { token: string; expire
 
   return (
     <motion.div
-      ref={ref}
       layout
       initial={{ opacity: 0, scale: 0.94 }}
       animate={{ opacity: 1, scale: 1 }}

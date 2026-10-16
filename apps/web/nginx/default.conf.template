@@ -1,0 +1,51 @@
+# Static file server for the built PWA. TLS, HSTS and /api routing are handled by nginx proxy
+# manager in front of it. This is a template: ${VARS} are filled in from the environment at
+# container start (official nginx image, /etc/nginx/templates).
+server {
+  listen 8080;
+  root /usr/share/nginx/html;
+  server_tokens off;
+
+  types {
+    application/wasm wasm;
+    application/manifest+json webmanifest;
+  }
+  include /etc/nginx/mime.types;
+
+  gzip on;
+  gzip_vary on;
+  gzip_comp_level 6;
+  gzip_min_length 1024;
+  gzip_types text/css text/plain application/javascript application/json application/manifest+json application/wasm image/svg+xml;
+
+  # Content-Security-Policy:
+  # - 'wasm-unsafe-eval' lets the QR scanner compile its (self-hosted) ZXing WebAssembly
+  # - connect-src allows the zero-cache origin (https + wss)
+  set $csp "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' ${ZERO_ORIGIN} ${ZERO_WS_ORIGIN}; worker-src 'self'; manifest-src 'self'; media-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
+
+  # add_header in a location replaces the server-level ones, so every location includes these.
+  include /etc/nginx/snippets/security-headers.conf;
+
+  location = /healthz {
+    access_log off;
+    default_type text/plain;
+    return 200 "ok\n";
+  }
+
+  # SPA: unknown paths serve the app shell.
+  location / {
+    try_files $uri /index.html;
+  }
+
+  # Must revalidate so new deploys are picked up by the service worker.
+  location ~* ^/(index\.html|sw\.js|registerSW\.js|manifest\.webmanifest)$ {
+    include /etc/nginx/snippets/security-headers.conf;
+    add_header Cache-Control "no-cache";
+  }
+
+  # Hashed build assets never change.
+  location /assets/ {
+    include /etc/nginx/snippets/security-headers.conf;
+    add_header Cache-Control "public, max-age=31536000, immutable";
+  }
+}

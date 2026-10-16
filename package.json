@@ -3,11 +3,13 @@
   "private": true,
   "type": "module",
   "packageManager": "pnpm@12.11.2",
-  "engines": { "node": ">=24" },
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "dev": "pnpm --parallel --filter @freezer/api --filter @freezer/web dev",
     "build": "pnpm -r build",
-    "test": "pnpm --filter @freezer/shared test",
+    "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
     "db:generate": "pnpm --filter @freezer/api db:generate",
     "db:migrate": "pnpm --filter @freezer/api db:migrate",

@@ -49,11 +49,10 @@ cp .env.example .env
    ```
 4. **Set up Pocket ID** at <http://localhost:1411/setup>. Create your admin account and passkey; WebAuthn works on `localhost` without HTTPS. Then:
    - **Administration → OIDC Clients → Add OIDC Client**
-     - Name: `Freezer Manager`
-     - Callback URL: `http://localhost:5173/api/auth/callback/pocket-id`
-     - Leave **Public client** off (confidential) and turn **PKCE** on.
-     - Save, then copy the **Client ID** and **Client secret** into `.env` (`POCKET_ID_CLIENT_ID`, `POCKET_ID_CLIENT_SECRET`). The secret is only shown once.
-     - Leave access unrestricted (no user groups), so every Pocket ID user may sign in.
+     - Name: `Freezer Manager`, client type **Confidential** (the default), callback URL `http://localhost:5173/api/auth/callback/pocket-id`.
+     - After **Create**, the client page shows the **Client ID** and **Client secret**. Copy both into `.env` (`POCKET_ID_CLIENT_ID`, `POCKET_ID_CLIENT_SECRET`); the secret is only shown once.
+     - On the client page, turn on **PKCE** and save.
+     - **Access tab:** select **All Users** and confirm with **Unrestricted**. A new client starts in "Selected user groups" mode with no groups, so nobody could sign in.
    - **Administration → API Keys → Add**, then copy the key into `POCKET_ID_API_KEY`. The API uses it to create signup links for invites. Without a key, invites still work, but only for people who already have a Pocket ID account.
 5. **Start zero-cache.** Start it after the migrations, because it needs the publication.
    ```bash
@@ -108,9 +107,9 @@ Passkeys are tied to the domain, so register a new one at the ts.net address. If
 | Command | What it does |
 | --- | --- |
 | `pnpm dev` | web + API with hot reload |
-| `pnpm test` | mutator and permission tests (Vitest, against PGlite) |
+| `pnpm test` | all tests: mutator/permission tests (Vitest, against PGlite) and API tests (CSRF) |
 | `pnpm typecheck` | TypeScript across all packages |
-| `pnpm build` | production build of the web app |
+| `pnpm build` | production builds: web app (`apps/web/dist`) and the bundled API (`apps/api/dist/*.mjs`) |
 | `pnpm db:generate` | new Drizzle migration from `packages/shared/src/db-schema.ts` |
 | `pnpm db:migrate` | apply migrations |
 | `pnpm db:seed --email …` | demo data |
@@ -158,7 +157,14 @@ The UI follows [Material 3 Expressive](https://m3.material.io/). Material Web (`
 
 ## Production (prepared, not deployed)
 
-`docker-compose.yml` runs **postgres, zero-cache, api, web** (static build served by nginx) and **pocket-id**. Nothing publishes ports. Your existing **nginx proxy manager** handles TLS and reaches the services over the shared external Docker network.
+`docker-compose.yml` runs **postgres, migrate (one-off), api, zero-cache, web** and **pocket-id**. Nothing publishes ports. Your existing **nginx proxy manager** handles TLS and reaches the services over the shared external Docker network.
+
+**Images:**
+- **`freezer-api`:** the API is bundled with esbuild into `dist/index.mjs` and `dist/migrate.mjs`, including all npm dependencies. The runtime image only has Node, the bundle and `drizzle/` (the migration SQL), and runs as the unprivileged `node` user. Node is the main process and shuts down gracefully on `SIGTERM`.
+- **`freezer-web`:** the static PWA on unprivileged nginx (port **8080**), with gzip and caching rules. Security headers include a strict Content-Security-Policy; its `connect-src` gets the zero-cache origin from `ZERO_ORIGIN` at container start.
+- Both images have a `HEALTHCHECK`. postgres, zero-cache and pocket-id have healthchecks in the compose file.
+
+**Startup order:** postgres (healthy) → `migrate` applies pending migrations and exits → api (healthy) → zero-cache. A failed migration stops the deploy before the new API starts.
 
 1. **On the VPS**, check the name of NPM's Docker network (`docker network ls`). Set it as `PROXY_NETWORK` (default `npm_proxy`), or create it with `docker network create npm_proxy` and attach NPM to it.
 2. **Create a `.env`** next to `docker-compose.yml` with:
@@ -167,31 +173,39 @@ The UI follows [Material 3 Expressive](https://m3.material.io/). Material Web (`
    - `POCKET_ID_ENCRYPTION_KEY`
    - `ZERO_API_KEY`
    - `ZERO_ADMIN_PASSWORD`
+   - `POCKET_ID_CLIENT_ID=pending` and `POCKET_ID_CLIENT_SECRET=pending`. Compose requires these, but you only get the real values in step 6.
 
    Hostnames default to the values below; override them with `FREEZER_HOST`, `SYNC_HOST` and `POCKET_ID_HOST`.
 3. **Create DNS records** for the three hostnames.
-4. **Add NPM proxy hosts**, all with SSL (Let's Encrypt) and Force SSL:
+4. **Add NPM proxy hosts**, all with SSL (Let's Encrypt), Force SSL and HSTS:
 
    | Hostname | Forward to | Notes |
    | --- | --- | --- |
-   | `freezer.malte-nowatzky.de` | `freezer-web` : `80` | **Custom location** `/api` → `freezer-api` : `3000` |
+   | `freezer.malte-nowatzky.de` | `freezer-web` : `8080` | **Custom location** `/api` → `freezer-api` : `3000` |
    | `sync.freezer.malte-nowatzky.de` | `freezer-zero` : `4848` | **Enable "Websockets Support"** (required) |
    | `id.malte-nowatzky.de` | `freezer-pocket-id` : `1411` | |
 
-5. **First start:**
+5. **Build and start Pocket ID:**
    ```bash
-   docker compose up -d --build
+   docker compose build
+   docker compose up -d pocket-id
    ```
-   The API applies migrations on start; zero-cache restarts (restart policy) until the publication exists.
 6. **Set up Pocket ID** at `https://id.malte-nowatzky.de/setup`, the same way as in dev, with:
    - Callback URL: `https://freezer.malte-nowatzky.de/api/auth/callback/pocket-id`
-   - Put `POCKET_ID_CLIENT_ID`, `POCKET_ID_CLIENT_SECRET` and `POCKET_ID_API_KEY` into `.env`.
-   - Then run `docker compose up -d api` again.
+   - Put the real `POCKET_ID_CLIENT_ID`, `POCKET_ID_CLIENT_SECRET` and `POCKET_ID_API_KEY` into `.env`.
+7. **Start everything:**
+   ```bash
+   docker compose up -d
+   docker compose ps   # all services healthy, migrate "Exited (0)"
+   ```
+
+**Deploying an update:** `git pull && docker compose up -d --build`. `migrate` runs again first; migrations that already ran are skipped.
 
 Notes:
 - The session cookie is set for `freezer.malte-nowatzky.de` (`COOKIE_DOMAIN`), so the browser also sends it to `sync.freezer.malte-nowatzky.de`, and zero-cache forwards it to the API.
+- CSRF: the API rejects state-changing requests to its own endpoints unless they come from the web app's origin. `/api/auth` is checked by Better Auth itself, and `/api/zero` by the zero-cache API key.
 - The API reaches Pocket ID internally (`http://pocket-id:1411`) for discovery and signup links. The OIDC token exchange uses the public `https://id…` URL, so the VPS must be able to reach its own public hostnames (hairpin through NPM).
-- `VITE_ZERO_CACHE_URL` and `VITE_PUBLIC_URL` are baked in at image build time (see the `web` build args).
+- `VITE_ZERO_CACHE_URL` and `VITE_PUBLIC_URL` are baked in at image build time (see the `web` build args). `ZERO_ORIGIN` (for the CSP) is set at runtime.
 
 ## Limitations
 

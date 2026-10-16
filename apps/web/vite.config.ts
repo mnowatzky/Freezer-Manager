@@ -49,6 +49,10 @@ export default defineConfig({
       devOptions: { enabled: true, type: "module", navigateFallback: "index.html" },
     }),
   ],
+  build: {
+    // Never inline fonts as data: URIs; the production CSP only allows fonts from 'self'.
+    assetsInlineLimit: (file) => (file.endsWith(".woff2") ? false : undefined),
+  },
   server: {
     host: true, // listen on 0.0.0.0 so phones on the LAN can reach the dev server
     // Allow access via `tailscale serve` (https://<mac>.<tailnet>.ts.net), see README → Testing on a phone.

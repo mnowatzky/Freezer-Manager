@@ -195,9 +195,6 @@ importers:
       postgres:
         specifier: 3.4.9
         version: 3.4.9
-      tsx:
-        specifier: 4.23.15
-        version: 4.23.15
       zod:
         specifier: 4.6.7
         version: 4.6.7
@@ -211,9 +208,18 @@ importers:
       drizzle-kit:
         specifier: 0.31.11
         version: 0.31.11
+      esbuild:
+        specifier: 0.28.2
+        version: 0.28.2
+      tsx:
+        specifier: 4.23.15
+        version: 4.23.15
       typescript:
         specifier: 7.0.2
         version: 7.0.2
+      vitest:
+        specifier: 5.0.4
+        version: 5.0.4(@opentelemetry/api@1.9.1)(@types/node@26.6.5)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
   apps/web:
     dependencies:

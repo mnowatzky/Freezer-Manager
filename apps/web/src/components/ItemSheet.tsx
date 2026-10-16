@@ -29,7 +29,7 @@ export function ItemSheet({ freezer, item, onClose }: { freezer: FreezerDetail; 
   return (
     <Sheet open={!!item} title={title} onClose={onClose}>
       {shown && (
-        <AnimatePresence mode="popLayout" initial={false}>
+        <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={mode}
             initial={{ opacity: 0, x: 24 }}
@@ -103,7 +103,7 @@ function Take({ item, onDone, onBack }: { item: ItemRow; onDone: () => void; onB
       <div className="mb-2 flex items-center justify-center gap-6">
         <IconButton icon="remove" label="−" variant="tonal" size={56} onClick={() => setAmount((a) => clamp(a - step))} />
         <div className="min-w-32 text-center">
-          <AnimatePresence mode="popLayout" initial={false}>
+          <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={amount}
               className="type-display-small type-emphasized"
