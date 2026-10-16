@@ -127,6 +127,14 @@ The UI follows [Material 3 Expressive](https://m3.material.io/). Material Web (`
   - The icons are Material Symbols Rounded as a self-hosted variable-font subset (`public/fonts/`), which works offline and animates the fill on selection.
   - To add an icon, put its name into `src/theme/icon-names.txt` and run `pnpm --filter @freezer/web fetch-icons`.
 
+- **App icons:** `pnpm --filter @freezer/web generate-icons` renders `apps/web/assets/icon*.svg` (the 108-unit adaptive-icon artwork) into four kinds of icon:
+  - a round `any` icon, for browsers that create plain shortcuts (e.g. Brave)
+  - a padded `maskable` icon, for Android launcher shapes
+  - a `monochrome` icon, for Android themed icons
+  - the Apple touch icon and favicon
+
+  Installing from Chrome on Android creates a real WebAPK, which uses the maskable and monochrome icons.
+
 ## Production (prepared, not deployed)
 
 `docker-compose.yml` runs **postgres, zero-cache, api, web** (static build served by nginx) and **pocket-id**. Nothing publishes ports. Your existing **nginx proxy manager** handles TLS and reaches the services over the shared external Docker network.
@@ -167,3 +175,4 @@ Notes:
 ## Limitations
 
 - **No offline writes.** Zero shows cached data offline, but rejects writes. The app shows an "Offline" banner and disables buttons that change data.
+- **Navigation bar color.** On Android 15+ an installed app's gesture/navigation bar shows the manifest `background_color`. A manifest has only one value, with no dark variant, so it's set to the dark surface: in dark mode the bar matches, in light mode it is dark. `theme_color` is left out on purpose (see the comment in `apps/web/vite.config.ts`).

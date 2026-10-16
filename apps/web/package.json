@@ -7,9 +7,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc -p .",
-    "generate-pwa-assets": "pwa-assets-generator",
     "generate-theme": "tsx scripts/generate-theme.ts",
-    "fetch-icons": "tsx scripts/fetch-icons.ts"
+    "fetch-icons": "tsx scripts/fetch-icons.ts",
+    "generate-icons": "tsx scripts/generate-icons.ts"
   },
   "dependencies": {
     "@fontsource-variable/google-sans-flex": "5.3.2",
@@ -31,8 +31,8 @@
     "@types/qrcode": "1.5.6",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
-    "@vite-pwa/assets-generator": "2.0.0",
     "@vitejs/plugin-react": "6.1.2",
+    "sharp": "^0.35.5",
     "tailwindcss": "4.3.3",
     "tsx": "4.23.15",
     "typescript": "7.0.2",

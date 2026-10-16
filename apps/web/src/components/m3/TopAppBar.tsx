@@ -48,7 +48,7 @@ export function TopAppBar({
         </div>
       </motion.header>
       <motion.div className="origin-left px-4 pt-1 pb-4" style={{ opacity: expandedOpacity, scale: expandedScale }}>
-        <h1 className="type-headline-large type-emphasized truncate">{title}</h1>
+        <h1 className="type-headline-large type-emphasized line-clamp-2 break-words hyphens-auto">{title}</h1>
         {subtitle && <div className="type-body-medium mt-0.5 text-on-surface-variant">{subtitle}</div>}
       </motion.div>
     </>

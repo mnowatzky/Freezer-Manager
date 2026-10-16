@@ -187,6 +187,8 @@
 @layer base {
   html {
     -webkit-tap-highlight-color: transparent;
+    /* Also paint the root so areas outside the body (e.g. behind system bars) match the theme. */
+    background: var(--md-sys-color-surface);
   }
   body {
     background: var(--md-sys-color-surface);
