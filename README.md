@@ -82,6 +82,27 @@ cp .env.example .env
 | Pocket ID | http://localhost:1411 |
 | Postgres | localhost:5432 (`freezer` / `freezer`) |
 
+### Testing on a phone (Tailscale Serve)
+
+Passkeys, the camera and the service worker all need trusted HTTPS, and passkeys need a real hostname, so a plain LAN IP won't work. With Tailscale on the Mac and the phone (with Serve/HTTPS enabled for the tailnet):
+
+```bash
+tailscale serve --bg --https=443   http://localhost:5173   # web + /api
+tailscale serve --bg --https=8443  http://localhost:4848   # zero-cache (WebSockets)
+tailscale serve --bg --https=10000 http://localhost:1411   # Pocket ID
+```
+
+1. In `.env`, set:
+   - `WEB_ORIGIN=https://<mac>.<tailnet>.ts.net`
+   - `POCKET_ID_URL=https://<mac>.<tailnet>.ts.net:10000`
+   - `POCKET_ID_TRUST_PROXY=true`
+   - `POCKET_ID_INTERNAL_URL=http://localhost:1411`
+   - `VITE_ZERO_CACHE_URL=https://<mac>.<tailnet>.ts.net:8443`
+2. Add `https://<mac>.<tailnet>.ts.net/api/auth/callback/pocket-id` to the OIDC client.
+3. Run `docker compose -f docker-compose.dev.yml up -d pocket-id`, then restart `pnpm dev`.
+
+Passkeys are tied to the domain, so register a new one at the ts.net address. If you can't log in there yet, create a login link with `docker exec freezer-dev-pocket-id-1 /app/pocket-id one-time-access-token <username>`.
+
 ## Scripts
 
 | Command | What it does |

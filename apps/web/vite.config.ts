@@ -50,8 +50,11 @@ export default defineConfig({
     }),
   ],
   server: {
-    port: 5173,
+    host: true, // listen on 0.0.0.0 so phones on the LAN can reach the dev server
+    // Allow access via `tailscale serve` (https://<mac>.<tailnet>.ts.net), see README → Testing on a phone.
+    allowedHosts: [".ts.net"],
+    port: Number(process.env.WEB_PORT ?? 5173),
     strictPort: true,
-    proxy: { "/api": "http://localhost:3000" },
+    proxy: { "/api": `http://localhost:${process.env.API_PORT ?? 3000}` },
   },
 });
