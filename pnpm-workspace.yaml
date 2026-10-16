@@ -18,3 +18,18 @@ minimumReleaseAgeExclude:
   - react@19.3.1
 overrides:
   postgres: 3.4.9
+  # Security patches for transitive deps (pnpm audit), kept within each package's major version.
+  # They live in @rocicorp/zero's server tooling and drizzle-kit, not in the shipped bundles.
+  tinypool: ^2.1.2
+  '@opentelemetry/core': ^2.8.0
+  '@opentelemetry/propagator-jaeger': ^2.9.0
+  '@opentelemetry/instrumentation-cassandra-driver': ^0.66.0
+  '@opentelemetry/instrumentation-knex': ^0.65.0
+  '@opentelemetry/instrumentation-mongoose': ^0.67.0
+  '@opentelemetry/instrumentation-mysql': ^0.67.0
+  '@opentelemetry/instrumentation-mysql2': ^0.67.0
+  '@opentelemetry/instrumentation-oracledb': ^0.46.0
+  '@opentelemetry/instrumentation-pg': ^0.73.0
+  '@opentelemetry/instrumentation-tedious': ^0.40.0
+  uuid@<11.1.1: ^11.1.1
+  '@esbuild-kit/core-utils>esbuild': ^0.25.0

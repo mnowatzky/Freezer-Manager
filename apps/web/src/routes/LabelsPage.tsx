@@ -18,7 +18,7 @@ export function LabelsPage() {
   return (
     <div className="min-h-dvh p-4 print:bg-white print:p-0">
       <div className="no-print mx-auto mb-6 flex max-w-xl flex-wrap items-center gap-3">
-        <IconButton icon="arrow_back" label={de.common.back} onClick={() => navigate("/einstellungen")} />
+        <IconButton icon="arrow_back" label={de.common.back} onClick={() => void navigate("/einstellungen")} />
         <h1 className="type-title-large mr-auto">{de.labels.title}</h1>
         <TextField
           className="w-24"

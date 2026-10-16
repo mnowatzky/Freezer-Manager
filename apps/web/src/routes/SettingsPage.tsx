@@ -1,6 +1,8 @@
 import { de } from "@freezer/shared/i18n";
 import { AnimatePresence, motion } from "motion/react";
 import QRCode from "qrcode";
+import { queries } from "@freezer/shared/queries";
+import { useQuery } from "@rocicorp/zero/react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { FullScreenLoading } from "../components/AuthedLayout";
@@ -25,13 +27,24 @@ function Settings({ freezer, userId }: { freezer: FreezerDetail; userId: string 
   const toast = useToast();
   const canWrite = useCanWrite();
   const isOwner = freezer.members.some((m) => m.userId === userId && m.role === "owner");
-  const now = Date.now();
-  const invites = freezer.invites.filter((i) => i.expiresAt > now);
+  // Owner-only query: members never receive invite tokens or signup links.
+  const [allInvites] = useQuery(isOwner && queries.freezers.invites({ freezerId: freezer.id }));
+  const [now] = useState(() => Date.now());
+  const invites = (allInvites ?? []).filter((i) => i.expiresAt > now);
+  const [creating, setCreating] = useState(false);
 
   const createInvite = async () => {
-    const res = await fetch(`/api/freezers/${freezer.id}/invites`, { method: "POST" });
-    if (!res.ok) toast(de.errors.notOwner);
-    // The new invite row arrives via Zero sync.
+    setCreating(true);
+    try {
+      const res = await fetch(`/api/freezers/${freezer.id}/invites`, { method: "POST" });
+      if (res.status === 403) toast(de.errors.notOwner);
+      else if (!res.ok) toast(de.errors.generic);
+      // On success the new invite row arrives via Zero sync.
+    } catch {
+      toast(de.errors.network);
+    } finally {
+      setCreating(false);
+    }
   };
 
   return (
@@ -39,7 +52,7 @@ function Settings({ freezer, userId }: { freezer: FreezerDetail; userId: string 
       <TopAppBar
         title={de.settings.title}
         subtitle={freezer.name}
-        navigation={<IconButton icon="arrow_back" label={de.common.back} onClick={() => navigate("/")} />}
+        navigation={<IconButton icon="arrow_back" label={de.common.back} onClick={() => void navigate("/")} />}
       />
       <div className="mx-auto flex max-w-2xl flex-col gap-8 px-4">
         <section>
@@ -79,7 +92,7 @@ function Settings({ freezer, userId }: { freezer: FreezerDetail; userId: string 
               <SectionTitle icon="person_add" className="mb-0">
                 {de.settings.invites}
               </SectionTitle>
-              <Button variant="tonal" icon="add" disabled={!canWrite} onClick={createInvite}>
+              <Button variant="tonal" icon="add" disabled={!canWrite || creating} onClick={() => void createInvite()}>
                 {de.settings.createInvite}
               </Button>
             </div>
@@ -100,8 +113,8 @@ function Settings({ freezer, userId }: { freezer: FreezerDetail; userId: string 
 
         <section>
           <ListGroup>
-            <ListItem leading={<Icon name="print" className="text-primary" />} headline={de.settings.labels} onClick={() => navigate("/etiketten")} />
-            <ListItem leading={<Icon name="add" className="text-primary" />} headline={de.freezer.newFreezer} onClick={() => navigate("/setup")} />
+            <ListItem leading={<Icon name="print" className="text-primary" />} headline={de.settings.labels} onClick={() => void navigate("/etiketten")} />
+            <ListItem leading={<Icon name="add" className="text-primary" />} headline={de.freezer.newFreezer} onClick={() => void navigate("/setup")} />
             <ListItem leading={<Icon name="logout" className="text-primary" />} headline={de.auth.signOut} onClick={() => void signOut()} />
           </ListGroup>
         </section>
@@ -112,9 +125,11 @@ function Settings({ freezer, userId }: { freezer: FreezerDetail; userId: string 
               variant="error"
               icon="delete"
               disabled={!canWrite}
-              onClick={async () => {
-                if (confirm(de.settings.confirmDelete) && (await mutate(mutators.freezer.delete({ freezerId: freezer.id }))))
-                  navigate("/", { replace: true });
+              onClick={() => {
+                if (!confirm(de.settings.confirmDelete)) return;
+                void mutate(mutators.freezer.delete({ freezerId: freezer.id })).then(
+                  (ok) => ok && navigate("/", { replace: true }),
+                );
               }}
             >
               {de.settings.deleteFreezer}
@@ -124,9 +139,11 @@ function Settings({ freezer, userId }: { freezer: FreezerDetail; userId: string 
               variant="error"
               icon="logout"
               disabled={!canWrite}
-              onClick={async () => {
-                if (await mutate(mutators.member.leave({ freezerId: freezer.id }))) navigate("/", { replace: true });
-              }}
+              onClick={() =>
+                void mutate(mutators.member.leave({ freezerId: freezer.id })).then(
+                  (ok) => ok && navigate("/", { replace: true }),
+                )
+              }
             >
               {de.settings.leave}
             </Button>

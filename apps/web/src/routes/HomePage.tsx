@@ -55,18 +55,19 @@ function FreezerView({ data, freezer }: { data: ReturnType<typeof useFreezerData
             {data.freezers.length > 1 && (
               <IconButton icon="kitchen" label={de.freezer.switchFreezer} onClick={() => setDialog("switch")} />
             )}
-            <IconButton icon="settings" label={de.freezer.settings} onClick={() => navigate("/einstellungen")} />
+            <IconButton icon="settings" label={de.freezer.settings} onClick={() => void navigate("/einstellungen")} />
           </>
         }
       />
 
-      <div className="mx-auto flex max-w-2xl flex-col gap-4 px-4">
+      <main className="mx-auto flex max-w-2xl flex-col gap-4 px-4">
         <label className="flex h-14 items-center gap-3 rounded-full bg-surface-container-high px-4 focus-within:ring-2 focus-within:ring-primary">
           <Icon name="search" className="text-on-surface-variant" />
           <input
             type="search"
             className="type-body-large min-w-0 flex-1 bg-transparent outline-none placeholder:text-on-surface-variant"
             placeholder={de.freezer.search}
+            aria-label={de.freezer.search}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -111,7 +112,7 @@ function FreezerView({ data, freezer }: { data: ReturnType<typeof useFreezerData
         ) : (
           <ItemList items={items} onSelect={setSelectedId} drawers={freezer.drawers} />
         )}
-      </div>
+      </main>
 
       {/* FAB stack: secondary "Scannen" above the extended primary "Einfrieren". */}
       <div className="fixed right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-20 flex flex-col items-end gap-3">
@@ -120,7 +121,7 @@ function FreezerView({ data, freezer }: { data: ReturnType<typeof useFreezerData
       </div>
 
       <ItemDialog open={dialog === "freeze"} freezer={freezer} onClose={() => setDialog(null)} />
-      <Scanner open={dialog === "scan"} onResult={(n) => navigate(`/c/${n}`)} onClose={() => setDialog(null)} />
+      <Scanner open={dialog === "scan"} onResult={(n) => void navigate(`/c/${n}`)} onClose={() => setDialog(null)} />
       <ItemSheet freezer={freezer} item={selected} onClose={() => setSelectedId(null)} />
       <Sheet open={dialog === "switch"} title={de.freezer.switchFreezer} onClose={() => setDialog(null)}>
         <ListGroup>

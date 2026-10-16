@@ -14,6 +14,11 @@
     "db:generate": "pnpm --filter @freezer/api db:generate",
     "db:migrate": "pnpm --filter @freezer/api db:migrate",
     "db:seed": "pnpm --filter @freezer/api db:seed",
-    "zero:generate": "pnpm --filter @freezer/shared zero:generate"
+    "zero:generate": "pnpm --filter @freezer/shared zero:generate",
+    "lint": "oxlint --type-aware"
+  },
+  "devDependencies": {
+    "oxlint": "1.88.0",
+    "oxlint-tsgolint": "7.0.2004"
   }
 }

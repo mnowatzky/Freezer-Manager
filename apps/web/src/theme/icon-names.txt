@@ -22,6 +22,7 @@ person_remove
 print
 qr_code_2
 qr_code_scanner
+refresh
 remove
 scale
 search

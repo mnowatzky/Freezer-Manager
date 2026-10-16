@@ -5,6 +5,7 @@ import { useNavigate, useParams } from "react-router";
 import { Centered, FullScreenLoading } from "../components/AuthedLayout";
 import { Button, Icon } from "../components/m3";
 import { authClient, signInWithPocketId } from "../lib/auth-client";
+import { useToast } from "../lib/toast";
 import { motionScheme } from "../theme/motion";
 import { BrandMark } from "./LoginPage";
 
@@ -19,39 +20,67 @@ export function JoinPage() {
   const { token = "" } = useParams();
   const navigate = useNavigate();
   const { data: session, isPending } = authClient.useSession();
-  const [info, setInfo] = useState<InviteInfo | null | "invalid">(null);
+  const [info, setInfo] = useState<InviteInfo | null | "invalid" | "error">(null);
   const [joining, setJoining] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const toast = useToast();
 
   useEffect(() => {
-    void fetch(`/api/invites/${encodeURIComponent(token)}`).then(async (res) =>
-      setInfo(res.ok ? ((await res.json()) as InviteInfo) : "invalid"),
-    );
-  }, [token]);
+    let cancelled = false;
+    fetch(`/api/invites/${encodeURIComponent(token)}`)
+      .then(async (res) => {
+        if (cancelled) return;
+        if (res.status === 404) setInfo("invalid");
+        else if (!res.ok) setInfo("error");
+        else setInfo((await res.json()) as InviteInfo);
+      })
+      .catch(() => !cancelled && setInfo("error"));
+    return () => {
+      cancelled = true;
+    };
+    // `attempt` is the retry trigger: bumping it re-runs this fetch.
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies
+  }, [token, attempt]);
 
   const accept = async () => {
     setJoining(true);
-    const res = await fetch(`/api/invites/${encodeURIComponent(token)}/accept`, { method: "POST" });
-    if (!res.ok) {
-      setJoining(false);
-      setInfo("invalid");
-      return;
-    }
-    const { freezerId } = (await res.json()) as { freezerId: string };
     try {
-      localStorage.setItem("activeFreezerId", freezerId);
+      const res = await fetch(`/api/invites/${encodeURIComponent(token)}/accept`, { method: "POST" });
+      if (res.status === 404) return setInfo("invalid");
+      if (!res.ok) return toast(de.errors.generic);
+      const { freezerId } = (await res.json()) as { freezerId: string };
+      try {
+        localStorage.setItem("activeFreezerId", freezerId);
+      } catch {
+        // ignore
+      }
+      void navigate("/", { replace: true });
     } catch {
-      // ignore
+      toast(de.errors.network);
+    } finally {
+      setJoining(false);
     }
-    navigate("/", { replace: true });
   };
 
   if (info === null || isPending) return <FullScreenLoading />;
-  if (info === "invalid")
+  if (info === "invalid" || info === "error")
     return (
       <Centered>
-        <div className="flex flex-col items-center gap-3">
+        <div className="flex max-w-xs flex-col items-center gap-4 text-center">
           <Icon name="error" size={40} className="text-error" />
-          {de.join.invalid}
+          {info === "invalid" ? de.join.invalid : de.errors.network}
+          {info === "error" ? (
+            <Button variant="tonal" icon="refresh" onClick={() => {
+                setInfo(null);
+                setAttempt((n) => n + 1);
+              }}>
+              {de.common.retry}
+            </Button>
+          ) : (
+            <Button variant="tonal" icon="arrow_forward" onClick={() => void navigate("/", { replace: true })}>
+              {de.join.toApp}
+            </Button>
+          )}
         </div>
       </Centered>
     );
@@ -70,7 +99,7 @@ export function JoinPage() {
         transition={{ ...motionScheme.slowSpatial, delay: 0.2 }}
       >
         {session ? (
-          <Button size="m" icon="group" className="w-full" disabled={joining} onClick={accept}>
+          <Button size="m" icon="group" className="w-full" disabled={joining} onClick={() => void accept()}>
             {de.join.accept}
           </Button>
         ) : (

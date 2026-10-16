@@ -107,8 +107,9 @@ Passkeys are tied to the domain, so register a new one at the ts.net address. If
 | Command | What it does |
 | --- | --- |
 | `pnpm dev` | web + API with hot reload |
-| `pnpm test` | all tests: mutator/permission tests (Vitest, against PGlite) and API tests (CSRF) |
+| `pnpm test` | all tests (Vitest, against PGlite): mutators, read permissions of the Zero queries, invite REST endpoints, CSRF |
 | `pnpm typecheck` | TypeScript across all packages |
+| `pnpm lint` | Oxlint, type-aware (floating promises, React hooks rules, a11y, …); config in `.oxlintrc.json` |
 | `pnpm build` | production builds: web app (`apps/web/dist`) and the bundled API (`apps/api/dist/*.mjs`) |
 | `pnpm db:generate` | new Drizzle migration from `packages/shared/src/db-schema.ts` |
 | `pnpm db:migrate` | apply migrations |
@@ -203,6 +204,7 @@ The UI follows [Material 3 Expressive](https://m3.material.io/). Material Web (`
 
 Notes:
 - The session cookie is set for `freezer.malte-nowatzky.de` (`COOKIE_DOMAIN`), so the browser also sends it to `sync.freezer.malte-nowatzky.de`, and zero-cache forwards it to the API.
+- Logs: the API writes one JSON object per line (`docker compose logs api`). Unhandled API errors and browser errors (sent by the PWA to `/api/client-errors`, size- and rate-limited) appear as `"level":"error"` lines, so they can be shipped to Loki or GlitchTip later without code changes.
 - CSRF: the API rejects state-changing requests to its own endpoints unless they come from the web app's origin. `/api/auth` is checked by Better Auth itself, and `/api/zero` by the zero-cache API key.
 - The API reaches Pocket ID internally (`http://pocket-id:1411`) for discovery and signup links. The OIDC token exchange uses the public `https://id…` URL, so the VPS must be able to reach its own public hostnames (hairpin through NPM).
 - `VITE_ZERO_CACHE_URL` and `VITE_PUBLIC_URL` are baked in at image build time (see the `web` build args). `ZERO_ORIGIN` (for the CSP) is set at runtime.

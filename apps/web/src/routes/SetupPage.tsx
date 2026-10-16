@@ -27,22 +27,22 @@ export function SetupPage() {
       } catch {
         // ignore
       }
-      navigate("/", { replace: true });
+      void navigate("/", { replace: true });
     }
   };
 
   return (
     <div className="min-h-dvh">
-      <TopAppBar title={de.setup.title} navigation={<IconButton icon="arrow_back" label={de.common.back} onClick={() => navigate(-1)} />} />
-      <form onSubmit={submit} className="mx-auto flex max-w-md flex-col gap-6 px-4">
+      <TopAppBar title={de.setup.title} navigation={<IconButton icon="arrow_back" label={de.common.back} onClick={() => void navigate(-1)} />} />
+      <form onSubmit={(e) => void submit(e)} className="mx-auto flex max-w-md flex-col gap-6 px-4">
         <TextField label={de.setup.name} value={name} autoFocus leadingIcon="kitchen" supporting={de.setup.namePlaceholder} onChange={(e) => setName(e.target.value)} />
 
         <div>
           <div className="type-title-medium mb-3">{de.setup.drawerCount}</div>
           <div className="flex items-center gap-4">
-            <IconButton icon="remove" label="−" variant="tonal" size={48} onClick={() => change(-1)} />
+            <IconButton icon="remove" label={de.common.less} variant="tonal" size={48} onClick={() => change(-1)} />
             <div className="type-display-small type-emphasized w-12 text-center">{drawerCount}</div>
-            <IconButton icon="add" label="+" variant="tonal" size={48} onClick={() => change(1)} />
+            <IconButton icon="add" label={de.common.more} variant="tonal" size={48} onClick={() => change(1)} />
           </div>
           {/* Preview of the drawers as stacked tiles that spring in/out. */}
           <div className="mt-5 flex flex-col gap-0.5">

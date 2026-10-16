@@ -1,6 +1,6 @@
 import { de } from "@freezer/shared/i18n";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { ageLabel, formatDate, quantityLabel } from "../lib/format";
 import type { FreezerDetail, ItemRow } from "../lib/freezer-data";
 import { mutators, useCanWrite, useMutate } from "../lib/zero";
@@ -15,14 +15,15 @@ type Mode = "view" | "take" | "edit";
  * Modes swap inside the same sheet, which springs to the new height.
  */
 export function ItemSheet({ freezer, item, onClose }: { freezer: FreezerDetail; item: ItemRow | undefined; onClose: () => void }) {
-  // Keep showing the last item while the sheet animates out (or if it's deleted remotely).
-  const last = useRef(item);
-  if (item) last.current = item;
-  const shown = item ?? last.current;
+  // Keep showing the last item while the sheet animates out (or if it's deleted remotely),
+  // and reset to the details view when a different item is opened. Both are derived during
+  // render (React's "adjust state on prop change" pattern) instead of in effects.
+  const [shown, setShown] = useState(item);
   const [mode, setMode] = useState<Mode>("view");
-  useEffect(() => {
-    if (item) setMode("view");
-  }, [item?.id]);
+  if (item && item !== shown) {
+    if (item.id !== shown?.id) setMode("view");
+    setShown(item);
+  }
 
   const title = mode === "take" ? de.item.takeTitle : mode === "edit" ? de.item.edit : shown?.name;
 
@@ -56,7 +57,7 @@ function Details({ freezer, item, onMode }: { freezer: FreezerDetail; item: Item
     ["calendar_month", de.item.frozenAt, `${formatDate(item.frozenAt)} · ${ageLabel(item.frozenAt)}`],
   ];
   if (item.containerNumber !== null) rows.push(["qr_code_2", de.item.container, `#${item.containerNumber}`]);
-  if (item.notes) rows.push(["notes", de.item.notes, <span className="whitespace-pre-wrap">{item.notes}</span>]);
+  if (item.notes) rows.push(["notes", de.item.notes, <span key="notes" className="whitespace-pre-wrap">{item.notes}</span>]);
 
   return (
     <>
@@ -101,7 +102,7 @@ function Take({ item, onDone, onBack }: { item: ItemRow; onDone: () => void; onB
         {item.name}: {quantityLabel(item.quantity, item.unit)}
       </p>
       <div className="mb-2 flex items-center justify-center gap-6">
-        <IconButton icon="remove" label="−" variant="tonal" size={56} onClick={() => setAmount((a) => clamp(a - step))} />
+        <IconButton icon="remove" label={de.common.less} variant="tonal" size={56} onClick={() => setAmount((a) => clamp(a - step))} />
         <div className="min-w-32 text-center">
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
@@ -116,7 +117,7 @@ function Take({ item, onDone, onBack }: { item: ItemRow; onDone: () => void; onB
             </motion.div>
           </AnimatePresence>
         </div>
-        <IconButton icon="add" label="+" variant="tonal" size={56} onClick={() => setAmount((a) => clamp(a + step))} />
+        <IconButton icon="add" label={de.common.more} variant="tonal" size={56} onClick={() => setAmount((a) => clamp(a + step))} />
       </div>
       <p className="type-body-small mb-6 text-center text-on-surface-variant">
         → {quantityLabel(remaining, item.unit)}
@@ -125,10 +126,10 @@ function Take({ item, onDone, onBack }: { item: ItemRow; onDone: () => void; onB
         <Button variant="text" onClick={onBack}>
           {de.common.back}
         </Button>
-        <Button variant="tonal" disabled={!canWrite} onClick={() => take(item.quantity)}>
+        <Button variant="tonal" disabled={!canWrite} onClick={() => void take(item.quantity)}>
           {de.common.all}
         </Button>
-        <Button icon="remove" disabled={!canWrite} onClick={() => take(amount)}>
+        <Button icon="remove" disabled={!canWrite} onClick={() => void take(amount)}>
           {de.item.takeConfirm}
         </Button>
       </div>

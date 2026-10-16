@@ -1,5 +1,9 @@
 **/node_modules
 **/dist
-.env
+**/.env*
+!**/.env.example
 .git
+.claude
+.playwright-mcp
+.production-readiness
 **/*.log

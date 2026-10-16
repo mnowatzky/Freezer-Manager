@@ -18,8 +18,18 @@ export const queries = defineQueries({
         .related("items", (i) => i.orderBy("frozenAt", "asc").orderBy("createdAt", "asc"))
         .related("suggestions", (s) => s.orderBy("useCount", "desc"))
         .related("members", (m) => m.related("user").orderBy("joinedAt", "asc"))
-        .related("invites", (i) => i.where("revokedAt", "IS", null).orderBy("createdAt", "desc"))
         .one(),
+    ),
+    // Invite tokens and Pocket ID signup links are owner-only: they let people join and create
+    // accounts, so they are synced to the freezer's owner and to nobody else.
+    invites: defineQuery(z.object({ freezerId: z.string() }), ({ args, ctx }) =>
+      zql.invite
+        .where("freezerId", args.freezerId)
+        .where("revokedAt", "IS", null)
+        .whereExists("freezer", (f) =>
+          f.whereExists("members", (m) => m.where("userId", ctx.userID).where("role", "owner")),
+        )
+        .orderBy("createdAt", "desc"),
     ),
   },
   items: {

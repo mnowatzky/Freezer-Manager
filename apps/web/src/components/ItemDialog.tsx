@@ -1,7 +1,7 @@
 import { todayAsDate, UNITS, type Unit } from "@freezer/shared/domain";
 import { de } from "@freezer/shared/i18n";
-import { AnimatePresence, motion } from "motion/react";
-import { useMemo, useState } from "react";
+import { AnimatePresence, motion, useIsPresent } from "motion/react";
+import { useMemo, useRef, useState } from "react";
 import { recentDrawer, rememberDrawer } from "../lib/active-freezer";
 import { dateToInput, inputToDate } from "../lib/format";
 import type { FreezerDetail, ItemRow } from "../lib/freezer-data";
@@ -26,6 +26,16 @@ export function ItemDialog({ open, onClose, ...props }: Omit<FormProps, "onDone"
   );
 }
 
+/** Suggestion chip; `inert` while it animates out so Tab can't land on a chip that's leaving. */
+function SuggestionChip({ children, ...props }: React.ComponentProps<typeof motion.div>) {
+  const isPresent = useIsPresent();
+  return (
+    <motion.div {...props} inert={!isPresent}>
+      {children}
+    </motion.div>
+  );
+}
+
 export function ItemForm({ freezer, item, containerNumber = null, onDone }: FormProps) {
   const mutate = useMutate();
   const canWrite = useCanWrite();
@@ -40,6 +50,7 @@ export function ItemForm({ freezer, item, containerNumber = null, onDone }: Form
   const [container, setContainer] = useState(String(item?.containerNumber ?? containerNumber ?? ""));
   const [notes, setNotes] = useState(item?.notes ?? "");
   const [focused, setFocused] = useState(false);
+  const nameAreaRef = useRef<HTMLDivElement>(null);
 
   const suggestions = useMemo(() => {
     const q = name.trim().toLocaleLowerCase("de");
@@ -73,8 +84,15 @@ export function ItemForm({ freezer, item, containerNumber = null, onDone }: Form
   };
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-4">
-      <div>
+    <form onSubmit={(e) => void submit(e)} className="flex flex-col gap-4">
+      {/* Focus is tracked on the whole field + chips area, so Tab can reach the chips. */}
+      <div
+        ref={nameAreaRef}
+        onFocus={() => setFocused(true)}
+        onBlur={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget)) setFocused(false);
+        }}
+      >
         <TextField
           label={de.item.name}
           value={name}
@@ -82,8 +100,6 @@ export function ItemForm({ freezer, item, containerNumber = null, onDone }: Form
           autoComplete="off"
           leadingIcon="kitchen"
           onChange={(e) => setName(e.target.value)}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setTimeout(() => setFocused(false), 150)}
         />
         {/* Suggestions as chips that animate in/out; ✕ removes a suggestion for everyone. */}
         <AnimatePresence initial={false}>
@@ -98,7 +114,7 @@ export function ItemForm({ freezer, item, containerNumber = null, onDone }: Form
               <div className="h-1 w-full" />
               <AnimatePresence initial={false}>
                 {suggestions.map((s) => (
-                  <motion.div
+                  <SuggestionChip
                     key={s.id}
                     layout
                     initial={{ opacity: 0, scale: 0.8 }}
@@ -114,7 +130,7 @@ export function ItemForm({ freezer, item, containerNumber = null, onDone }: Form
                       onClick={() => {
                         setName(s.name);
                         if (!item) setUnit(s.lastUnit as Unit);
-                        setFocused(false);
+                        nameAreaRef.current?.querySelector("input")?.focus();
                       }}
                     >
                       {s.name}
@@ -129,7 +145,7 @@ export function ItemForm({ freezer, item, containerNumber = null, onDone }: Form
                     >
                       <Icon name="close" size={18} />
                     </button>
-                  </motion.div>
+                  </SuggestionChip>
                 ))}
               </AnimatePresence>
             </motion.div>

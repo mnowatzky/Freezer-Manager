@@ -20,7 +20,7 @@ export function ContainerPage() {
   const data = useFreezerData();
   const [occupants, occupantsResult] = useQuery(queries.items.byContainer({ containerNumber: number }));
   const [chosenFreezer, setChosenFreezer] = useState<string | null>(null);
-  const close = () => navigate("/", { replace: true });
+  const close = () => void navigate("/", { replace: true });
 
   const occupant = occupants[0];
   // Show the occupied container in the freezer that holds it.

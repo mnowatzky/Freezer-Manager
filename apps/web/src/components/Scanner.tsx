@@ -34,7 +34,7 @@ function ScannerBody({ onResult }: { onResult: (n: number) => void }) {
     let cancelled = false;
     const detector = new BarcodeDetector({ formats: ["qr_code"] });
 
-    (async () => {
+    void (async () => {
       try {
         stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
         if (cancelled || !videoRef.current) return;
@@ -53,9 +53,9 @@ function ScannerBody({ onResult }: { onResult: (n: number) => void }) {
           } catch {
             // Frame not ready yet; try again on the next one.
           }
-          raf = requestAnimationFrame(tick);
+          raf = requestAnimationFrame(() => void tick());
         };
-        raf = requestAnimationFrame(tick);
+        raf = requestAnimationFrame(() => void tick());
       } catch {
         setCameraError(true);
       }

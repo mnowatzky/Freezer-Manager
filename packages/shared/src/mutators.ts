@@ -4,13 +4,13 @@ import "./context";
 import type { ZeroContext } from "./context";
 import { MAX_DRAWERS, suggestionId, UNITS } from "./domain";
 import { de } from "./i18n/de";
-import { zql, type Schema } from "./zero-schema.gen";
+import { zql } from "./zero-schema.gen";
 
 // Custom mutators run optimistically on the client and authoritatively on the
 // server (via /api/zero/mutate). All permission checks live here and use the
 // trusted ctx.userID; on the server, reads see the full database.
 
-type Tx = Transaction<Schema>;
+type Tx = Transaction;
 
 async function requireRole(tx: Tx, ctx: ZeroContext, freezerId: string, role?: "owner") {
   const member = await tx.run(

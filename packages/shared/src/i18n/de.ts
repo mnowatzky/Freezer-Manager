@@ -12,6 +12,9 @@ export const de = {
     loading: "Lädt …",
     all: "Alles",
     optional: "optional",
+    retry: "Erneut versuchen",
+    less: "Weniger",
+    more: "Mehr",
   },
   auth: {
     title: "Anmelden",
@@ -107,12 +110,19 @@ export const de = {
     createAccountHint: "Nach dem Erstellen des Kontos hierher zurückkehren und anmelden.",
     accept: "Beitreten",
     invalid: "Diese Einladung ist ungültig oder abgelaufen.",
+    toApp: "Zur App",
   },
   labels: {
     title: "QR-Etiketten",
     from: "Von",
     to: "Bis",
     print: "Drucken",
+  },
+  errorPage: {
+    title: "Ups, da ist etwas schiefgelaufen.",
+    hint: "Der Fehler wurde gemeldet. Lade die Seite neu, um es noch einmal zu versuchen.",
+    notFound: "Diese Seite gibt es nicht.",
+    reload: "Neu laden",
   },
   errors: {
     notMember: "Kein Zugriff auf diesen Gefrierschrank.",
@@ -121,6 +131,8 @@ export const de = {
     containerInUse: (n: number) => `Behälter ${n} ist bereits belegt.`,
     invalidAmount: "Ungültige Menge.",
     ownerCannotLeave: "Der Besitzer kann den Gefrierschrank nicht verlassen.",
+    generic: "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
+    network: "Keine Verbindung zum Server. Bitte versuche es erneut.",
   },
 };
 

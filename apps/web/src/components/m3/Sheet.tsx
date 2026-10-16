@@ -1,12 +1,29 @@
 import { AnimatePresence, motion, useDragControls, type PanInfo } from "motion/react";
-import { useEffect, type ReactNode } from "react";
+import { de } from "@freezer/shared/i18n";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { motionScheme } from "../../theme/motion";
+import { IconButton } from "./Button";
+
+// The element that last had focus inside the app (#root). Recorded on every focusin, i.e.
+// before an autofocused field inside a newly opened sheet takes focus, so closing the sheet
+// can hand focus back to whatever opened it.
+let lastAppFocus: HTMLElement | null = null;
+if (typeof document !== "undefined") {
+  document.addEventListener("focusin", (e) => {
+    const root = document.getElementById("root");
+    if (e.target instanceof HTMLElement && root?.contains(e.target)) lastAppFocus = e.target;
+  });
+}
 
 /**
  * M3 modal bottom sheet (centered dialog on wide screens). Slides in on the default
  * spatial spring, can be dragged down to dismiss, and resizes smoothly when its
  * content changes. Controlled by `open` so the exit animation can play.
+ *
+ * Accessibility: labelled by its heading, focus moves into the sheet on open and back to
+ * the previously focused element on close, the app behind it is `inert` (so focus and
+ * screen readers stay inside), and there is always a visible close button.
  */
 export function Sheet({
   open,
@@ -20,6 +37,8 @@ export function Sheet({
   children: ReactNode;
 }) {
   const drag = useDragControls();
+  const titleId = useId();
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -31,6 +50,25 @@ export function Sheet({
       document.body.style.overflow = "";
     };
   }, [open, onClose]);
+
+  // Focus management: move focus in (unless a field inside autofocused), make the app inert,
+  // and restore focus to the opener when the sheet closes.
+  useEffect(() => {
+    if (!open) return;
+    const active = document.activeElement;
+    const opener = active instanceof HTMLElement && document.getElementById("root")?.contains(active) ? active : lastAppFocus;
+    const root = document.getElementById("root");
+    if (root) root.inert = true;
+    const frame = requestAnimationFrame(() => {
+      const dialog = dialogRef.current;
+      if (dialog && !dialog.contains(document.activeElement)) dialog.focus();
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      if (root) root.inert = false;
+      if (opener?.isConnected) opener.focus();
+    };
+  }, [open]);
 
   const onDragEnd = (_: unknown, info: PanInfo) => {
     if (info.offset.y > 120 || info.velocity.y > 600) onClose();
@@ -49,10 +87,12 @@ export function Sheet({
             onClick={onClose}
           />
           <motion.div
+            ref={dialogRef}
             role="dialog"
             aria-modal
-            aria-label={typeof title === "string" ? title : undefined}
-            className="relative max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-t-xl bg-surface-container-low px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] shadow-2xl sm:rounded-xl"
+            aria-labelledby={titleId}
+            tabIndex={-1}
+            className="relative outline-none max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-t-xl bg-surface-container-low px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] shadow-2xl sm:rounded-xl"
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
             exit={{ y: "100%", transition: motionScheme.defaultEffects }}
@@ -71,9 +111,12 @@ export function Sheet({
             >
               <div className="h-1 w-8 rounded-full bg-on-surface-variant/40" />
             </div>
-            <motion.h2 layout="position" className="type-headline-small mb-5">
-              {title}
-            </motion.h2>
+            <motion.div layout="position" className="mb-5 flex items-start gap-2">
+              <h2 id={titleId} className="type-headline-small min-w-0 flex-1">
+                {title}
+              </h2>
+              <IconButton icon="close" label={de.common.close} className="-mt-1 -mr-2" onClick={onClose} />
+            </motion.div>
             {children}
           </motion.div>
         </div>

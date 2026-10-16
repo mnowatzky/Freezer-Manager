@@ -1,4 +1,5 @@
 import { env } from "./env";
+import { errorFields, log } from "./log";
 
 /**
  * Creates a Pocket ID signup token (admin API, authenticated with an API key)
@@ -12,15 +13,16 @@ export async function createSignupLink(ttlMs: number, usageLimit = 10): Promise<
       method: "POST",
       headers: { "Content-Type": "application/json", "X-API-KEY": env.pocketIdApiKey },
       body: JSON.stringify({ ttl: Math.floor(ttlMs / 1000), usageLimit }),
+      signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) {
-      console.warn(`Pocket ID signup token request failed: ${res.status} ${await res.text()}`);
+      log("warn", "Pocket ID signup token request failed", { status: res.status, body: await res.text() });
       return null;
     }
     const { token } = (await res.json()) as { token: string };
     return `${env.pocketIdUrl}/st/${token}`;
   } catch (err) {
-    console.warn("Pocket ID signup token request failed:", err);
+    log("warn", "Pocket ID signup token request failed", errorFields(err));
     return null;
   }
 }

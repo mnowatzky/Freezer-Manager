@@ -1,7 +1,6 @@
 import "@freezer/shared/context";
 import { mutators } from "@freezer/shared/mutators";
 import { schema } from "@freezer/shared/zero-schema";
-import type { MutatorResult } from "@rocicorp/zero";
 import { useConnectionState, useZero, ZeroProvider } from "@rocicorp/zero/react";
 import { useCallback, useEffect, useMemo, type ReactNode } from "react";
 import { useToast } from "./toast";
@@ -48,7 +47,7 @@ export function useMutate() {
   const toast = useToast();
   return useCallback(
     async (request: MutateArg) => {
-      const result = zero.mutate(request) as MutatorResult;
+      const result = zero.mutate(request);
       const client = await result.client;
       if (client.type === "error") {
         toast(client.error.message);
