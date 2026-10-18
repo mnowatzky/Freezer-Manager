@@ -19,7 +19,8 @@ A realtime, multi-user PWA that tracks what's in the home freezer: which food is
    - **Mutators** check membership, and the owner role where needed, before writing.
 
    The same mutators also run optimistically on the client. Legacy client-side permissions and CRUD mutators are not used.
-4. Invites need server-only work (random tokens, a Pocket ID signup link created through the Pocket ID admin API), so they use small REST endpoints. The invite rows themselves sync through Zero.
+4. **New accounts:** Pocket ID only allows signups through single-use links that the API creates. People get one either through an **invite** (they also join that freezer) or, if `REGISTRATION_CODE` is set, by entering that code on the login page under "Noch kein Konto?" (they then set up their own freezer). Wrong codes are rate-limited per IP and globally.
+5. Invites need server-only work (random tokens, a Pocket ID signup link created through the Pocket ID admin API), so they use small REST endpoints. The invite rows themselves sync through Zero.
 
 ## Prerequisites
 
@@ -175,11 +176,12 @@ In your Pocket ID (it must be reachable from the internet, by phones and by the 
 2. **Group:** create a group such as `freezer` and copy its ID. Put it into `POCKET_ID_SIGNUP_GROUP_IDS`, so people who sign up via an invite land in that group only. Restrict your other apps' OIDC clients to your own groups, otherwise invitees could sign in there too.
 3. **OIDC client:** Administration → OIDC Clients → Add: name `Freezer Manager`, **Confidential**, callback `https://freezer.malte-nowatzky.de/api/auth/callback/pocket-id`. Copy client ID and secret (shown once). Turn on **PKCE**. **Access tab:** "All Users" (confirm "Unrestricted"), or your own group plus `freezer`.
 4. **API key:** Administration → API Keys → Add (the API creates signup links with it).
+5. **Registration code (optional):** set `REGISTRATION_CODE` in the VPS `.env` to let people without an invite create an account on the login page. Hand the code out personally; anyone who has it can register.
 
 ### VPS setup
 
 1. **Docker network:** check NPM's network (`docker network ls`). Set it as `PROXY_NETWORK` (default `npm_proxy`), or create it (`docker network create npm_proxy`) and attach NPM (`docker network connect npm_proxy <npm-container>`).
-2. **Files:** put `docker-compose.yml` and a `.env` (mode 600) into e.g. `/opt/freezer`. `.env` needs `IMAGE_TAG`, `POSTGRES_PASSWORD`, `BETTER_AUTH_SECRET`, `ZERO_API_KEY`, `ZERO_ADMIN_PASSWORD`, `POCKET_ID_URL`, `POCKET_ID_CLIENT_ID`, `POCKET_ID_CLIENT_SECRET`, `POCKET_ID_API_KEY` and optionally `POCKET_ID_SIGNUP_GROUP_IDS` (see `.env.example`). Hostnames default to the values below; override with `FREEZER_HOST` and `SYNC_HOST`. Keep a copy of `.env` somewhere safe.
+2. **Files:** put `docker-compose.yml` and a `.env` (mode 600) into e.g. `/opt/freezer`. `.env` needs `IMAGE_TAG`, `POSTGRES_PASSWORD`, `BETTER_AUTH_SECRET`, `ZERO_API_KEY`, `ZERO_ADMIN_PASSWORD`, `POCKET_ID_URL`, `POCKET_ID_CLIENT_ID`, `POCKET_ID_CLIENT_SECRET`, `POCKET_ID_API_KEY` and optionally `POCKET_ID_SIGNUP_GROUP_IDS` and `REGISTRATION_CODE` (see `.env.example`). Hostnames default to the values below; override with `FREEZER_HOST` and `SYNC_HOST`. Keep a copy of `.env` somewhere safe.
 3. **Start the stack before creating proxy hosts.** NPM's nginx resolves the forward hostnames when it loads its config; if the containers don't exist yet, NPM fails with "Internal Error".
    ```bash
    docker compose pull

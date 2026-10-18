@@ -66,6 +66,8 @@ services:
       POCKET_ID_API_KEY: ${POCKET_ID_API_KEY:-}
       # Optional: comma-separated Pocket ID group IDs that people signing up via an invite join.
       POCKET_ID_SIGNUP_GROUP_IDS: ${POCKET_ID_SIGNUP_GROUP_IDS:-}
+      # Optional: code that lets people without an invite create an account on the login page.
+      REGISTRATION_CODE: ${REGISTRATION_CODE:-}
       ZERO_API_KEY: ${ZERO_API_KEY:?set ZERO_API_KEY}
     # Healthcheck: defined in apps/api/Dockerfile (GET /api/health).
     networks:

@@ -16,6 +16,7 @@ import { db, schema, zeroDb } from "./db";
 import { env } from "./env";
 import { errorFields, log } from "./log";
 import { createSignupLink } from "./pocket-id";
+import { clientIp, rateLimiter } from "./rate-limit";
 import { secretsEqual } from "./secrets";
 
 export const app = new Hono();
@@ -47,15 +48,9 @@ app.on(["GET", "POST"], "/api/auth/*", (c) => auth.handler(c.req.raw));
 
 // Client-side error reports from the PWA (window errors, route error boundary). Logged as
 // structured lines; body size and per-IP rate are capped so it can't be used to flood logs.
-const clientErrorBudget = new Map<string, { count: number; resetAt: number }>();
+const clientErrorLimit = rateLimiter(20, 60_000);
 app.post("/api/client-errors", bodyLimit({ maxSize: 8 * 1024 }), async (c) => {
-  const ip = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  const now = Date.now();
-  if (clientErrorBudget.size > 1000)
-    for (const [key, b] of clientErrorBudget) if (b.resetAt < now) clientErrorBudget.delete(key);
-  const budget = clientErrorBudget.get(ip);
-  if (!budget || budget.resetAt < now) clientErrorBudget.set(ip, { count: 1, resetAt: now + 60_000 });
-  else if (++budget.count > 20) return c.body(null, 429);
+  if (!clientErrorLimit.allow(clientIp(c))) return c.body(null, 429);
   const report = await c.req.json().catch(() => null);
   if (!report || typeof report !== "object") return c.body(null, 400);
   const { message, stack, context, url, userAgent } = report as Record<string, unknown>;
@@ -96,6 +91,35 @@ app.post("/api/zero/mutate", async (c) => {
     userID,
   });
   return c.json(result);
+});
+
+// ---------------------------------------------------------------------------
+// Self-registration with a code (REGISTRATION_CODE). The code unlocks a single-use Pocket ID
+// signup link (1 h); Pocket ID itself stays closed to open signups. Wrong codes are rate-limited
+// per IP so the code can't be brute-forced.
+// ---------------------------------------------------------------------------
+
+const REGISTRATION_LINK_TTL_MS = 60 * 60 * 1000;
+const registerLimit = rateLimiter(10, 15 * 60_000);
+// X-Forwarded-For can be forged, so a global cap bounds guessing regardless of claimed IPs.
+const registerGlobalLimit = rateLimiter(50, 60 * 60_000);
+
+app.get("/api/register", (c) => c.json({ enabled: Boolean(env.registrationCode && env.pocketIdApiKey) }));
+
+app.post("/api/register", bodyLimit({ maxSize: 1024 }), async (c) => {
+  if (!env.registrationCode || !env.pocketIdApiKey) return c.json({ error: "disabled" }, 404);
+  if (!registerLimit.allow(clientIp(c)) || !registerGlobalLimit.allow("all"))
+    return c.json({ error: "rate_limited" }, 429);
+  const body = (await c.req.json().catch(() => null)) as { code?: unknown } | null;
+  const code = typeof body?.code === "string" ? body.code.trim() : "";
+  if (!secretsEqual(code, env.registrationCode)) {
+    log("warn", "registration with wrong code", { ip: clientIp(c) });
+    return c.json({ error: "invalid_code" }, 403);
+  }
+  const signupUrl = await createSignupLink(REGISTRATION_LINK_TTL_MS, 1);
+  if (!signupUrl) return c.json({ error: "unavailable" }, 503);
+  log("info", "registration link issued", { ip: clientIp(c) });
+  return c.json({ signupUrl });
 });
 
 // ---------------------------------------------------------------------------

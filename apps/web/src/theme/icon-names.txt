@@ -12,6 +12,7 @@ edit
 error
 expand_more
 group
+key
 keyboard
 kitchen
 logout

@@ -25,6 +25,8 @@ export const env = {
     .split(",")
     .map((id) => id.trim())
     .filter(Boolean),
+  /** Code that unlocks self-registration on the login page (optional; unset = invite-only). */
+  registrationCode: process.env.REGISTRATION_CODE?.trim() || undefined,
   /** Shared secret zero-cache sends as X-Api-Key on /api/zero/* calls. */
   zeroApiKey: required("ZERO_API_KEY"),
 };

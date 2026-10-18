@@ -21,6 +21,16 @@ export const de = {
     intro: "Melde dich mit deinem Passkey bei Pocket ID an.",
     signIn: "Mit Pocket ID anmelden",
     signOut: "Abmelden",
+    noAccount: "Noch kein Konto?",
+    registerIntro: "Mit einem Registrierungscode kannst du dir ein Konto erstellen.",
+    registrationCode: "Registrierungscode",
+    register: "Konto erstellen",
+    registerReady: "Dein Registrierungslink ist bereit (1 Stunde gültig).",
+    registerNext:
+      "Erstelle dort dein Konto und einen Passkey. Komm danach hierher zurück und melde dich mit Pocket ID an.",
+    continueToPocketId: "Weiter zu Pocket ID",
+    invalidCode: "Dieser Code ist ungültig.",
+    tooManyAttempts: "Zu viele Versuche. Bitte warte ein paar Minuten.",
   },
   offline: "Offline – Änderungen nicht möglich",
   setup: {
