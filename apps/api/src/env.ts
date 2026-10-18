@@ -20,6 +20,11 @@ export const env = {
   pocketIdClientSecret: required("POCKET_ID_CLIENT_SECRET"),
   /** Admin API key for creating signup tokens; invites work without it (no signup link). */
   pocketIdApiKey: process.env.POCKET_ID_API_KEY || undefined,
+  /** Pocket ID group IDs that people signing up via an invite join (comma-separated, optional). */
+  pocketIdSignupGroupIds: (process.env.POCKET_ID_SIGNUP_GROUP_IDS ?? "")
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean),
   /** Shared secret zero-cache sends as X-Api-Key on /api/zero/* calls. */
   zeroApiKey: required("ZERO_API_KEY"),
 };

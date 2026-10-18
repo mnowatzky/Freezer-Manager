@@ -4,7 +4,10 @@
 # NPM proxy hosts (see README → Production):
 #   ${FREEZER_HOST}         → freezer-web:8080, custom location /api → freezer-api:3000
 #   ${SYNC_HOST}            → freezer-zero:4848  (enable "Websockets Support")
-#   ${POCKET_ID_HOST}       → freezer-pocket-id:1411
+#   (only with the bundled Pocket ID) its host → freezer-pocket-id:1411
+#
+# Pocket ID: by default the app uses an existing, external Pocket ID instance (POCKET_ID_URL).
+# To run Pocket ID in this stack instead, set COMPOSE_PROFILES=bundled-pocket-id (see README).
 #
 # Startup order (via healthchecks): postgres → migrate (one-off) → api → zero-cache.
 name: freezer
@@ -53,12 +56,16 @@ services:
       # Session cookie for freezer.<domain> and sync.freezer.<domain> (zero-cache forwards it to the API).
       COOKIE_DOMAIN: ${FREEZER_HOST:-freezer.malte-nowatzky.de}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET}
-      POCKET_ID_URL: https://${POCKET_ID_HOST:-id.malte-nowatzky.de}
-      # Discovery + signup-token API over the Docker network; the token exchange uses the public URL.
-      POCKET_ID_INTERNAL_URL: http://pocket-id:1411
+      # Public Pocket ID URL (issuer; browsers and the OIDC token exchange use it).
+      POCKET_ID_URL: ${POCKET_ID_URL:?set POCKET_ID_URL, e.g. https://oidc.example.com}
+      # Optional: how the API reaches Pocket ID for discovery + signup links if different
+      # (bundled instance: http://pocket-id:1411). Empty = POCKET_ID_URL.
+      POCKET_ID_INTERNAL_URL: ${POCKET_ID_INTERNAL_URL:-}
       POCKET_ID_CLIENT_ID: ${POCKET_ID_CLIENT_ID:?set POCKET_ID_CLIENT_ID}
       POCKET_ID_CLIENT_SECRET: ${POCKET_ID_CLIENT_SECRET:?set POCKET_ID_CLIENT_SECRET}
       POCKET_ID_API_KEY: ${POCKET_ID_API_KEY:-}
+      # Optional: comma-separated Pocket ID group IDs that people signing up via an invite join.
+      POCKET_ID_SIGNUP_GROUP_IDS: ${POCKET_ID_SIGNUP_GROUP_IDS:-}
       ZERO_API_KEY: ${ZERO_API_KEY:?set ZERO_API_KEY}
     # Healthcheck: defined in apps/api/Dockerfile (GET /api/health).
     networks:
@@ -112,11 +119,14 @@ services:
       proxy: { aliases: [freezer-web] }
     restart: unless-stopped
 
+  # Optional bundled Pocket ID (COMPOSE_PROFILES=bundled-pocket-id). Not started otherwise.
   pocket-id:
+    profiles: ["bundled-pocket-id"]
     image: ghcr.io/pocket-id/pocket-id:v2.18.0
     environment:
-      APP_URL: https://${POCKET_ID_HOST:-id.malte-nowatzky.de}
-      ENCRYPTION_KEY: ${POCKET_ID_ENCRYPTION_KEY:?set POCKET_ID_ENCRYPTION_KEY}
+      APP_URL: ${POCKET_ID_URL}
+      # Required when this profile is used; Pocket ID refuses to start without it.
+      ENCRYPTION_KEY: ${POCKET_ID_ENCRYPTION_KEY:-}
       TRUST_PROXY: "true"
       UI_CONFIG_DISABLED: "true"
       ALLOW_USER_SIGNUPS: withToken

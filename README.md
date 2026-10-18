@@ -156,59 +156,58 @@ The UI follows [Material 3 Expressive](https://m3.material.io/). Material Web (`
 
   Installing from Chrome on Android creates a real WebAPK, which uses the maskable and monochrome icons.
 
-## Production (prepared, not deployed)
+## Production
 
-`docker-compose.yml` runs **postgres, migrate (one-off), api, zero-cache, web** and **pocket-id**. Nothing publishes ports. Your existing **nginx proxy manager** handles TLS and reaches the services over the shared external Docker network.
+`docker-compose.yml` runs **postgres, migrate (one-off), api, zero-cache and web**. Login uses an **existing Pocket ID instance** (`POCKET_ID_URL`); a bundled Pocket ID is available as an optional profile (see below). Nothing publishes ports. Your existing **nginx proxy manager** (NPM) handles TLS and reaches the services over the shared external Docker network.
 
 **Images:**
-- **`freezer-api`:** the API is bundled with esbuild into `dist/index.mjs` and `dist/migrate.mjs`, including all npm dependencies. The runtime image only has Node, the bundle and `drizzle/` (the migration SQL), and runs as the unprivileged `node` user. Node is the main process and shuts down gracefully on `SIGTERM`.
-- **`freezer-web`:** the static PWA on unprivileged nginx (port **8080**), with gzip and caching rules. Security headers include a strict Content-Security-Policy; its `connect-src` gets the zero-cache origin from `ZERO_ORIGIN` at container start.
-- Both images have a `HEALTHCHECK`. postgres, zero-cache and pocket-id have healthchecks in the compose file.
+- **`api`:** the API is bundled with esbuild into `dist/index.mjs` and `dist/migrate.mjs`, including all npm dependencies. The runtime image only has Node, the bundle and `drizzle/` (the migration SQL), and runs as the unprivileged `node` user. Node is the main process and shuts down gracefully on `SIGTERM`.
+- **`web`:** the static PWA on unprivileged nginx (port **8080**), with gzip and caching rules. Security headers include a strict Content-Security-Policy; its `connect-src` gets the zero-cache origin from `ZERO_ORIGIN` at container start.
+- Both are built locally (for the VPS's CPU architecture) and pushed to Docker Hub as `${IMAGE_REPO}:api-<tag>` and `${IMAGE_REPO}:web-<tag>` (default `maltenow/freezer-manager`). The VPS only needs `docker-compose.yml` and `.env`; it pulls the images.
+- Both images have a `HEALTHCHECK`; postgres and zero-cache have healthchecks in the compose file.
 
 **Startup order:** postgres (healthy) → `migrate` applies pending migrations and exits → api (healthy) → zero-cache. A failed migration stops the deploy before the new API starts.
 
-1. **On the VPS**, check the name of NPM's Docker network (`docker network ls`). Set it as `PROXY_NETWORK` (default `npm_proxy`), or create it with `docker network create npm_proxy` and attach NPM to it.
-2. **Create a `.env`** next to `docker-compose.yml` with:
-   - `POSTGRES_PASSWORD`
-   - `BETTER_AUTH_SECRET`
-   - `POCKET_ID_ENCRYPTION_KEY`
-   - `ZERO_API_KEY`
-   - `ZERO_ADMIN_PASSWORD`
-   - `POCKET_ID_CLIENT_ID=pending` and `POCKET_ID_CLIENT_SECRET=pending`. Compose requires these, but you only get the real values in step 6.
+### Pocket ID (existing instance)
 
-   Hostnames default to the values below; override them with `FREEZER_HOST`, `SYNC_HOST` and `POCKET_ID_HOST`.
-3. **Create DNS records** for the three hostnames.
-4. **Add NPM proxy hosts**, all with SSL (Let's Encrypt), Force SSL and HSTS:
+In your Pocket ID (it must be reachable from the internet, by phones and by the VPS):
+1. **Signups:** Administration → Application Configuration → User Creation → **"Signup with token"** (or `ALLOW_USER_SIGNUPS=withToken`). Invites then come with a signup link for people without an account; open self-registration stays off.
+2. **Group:** create a group such as `freezer` and copy its ID. Put it into `POCKET_ID_SIGNUP_GROUP_IDS`, so people who sign up via an invite land in that group only. Restrict your other apps' OIDC clients to your own groups, otherwise invitees could sign in there too.
+3. **OIDC client:** Administration → OIDC Clients → Add: name `Freezer Manager`, **Confidential**, callback `https://freezer.malte-nowatzky.de/api/auth/callback/pocket-id`. Copy client ID and secret (shown once). Turn on **PKCE**. **Access tab:** "All Users" (confirm "Unrestricted"), or your own group plus `freezer`.
+4. **API key:** Administration → API Keys → Add (the API creates signup links with it).
+
+### VPS setup
+
+1. **Docker network:** check NPM's network (`docker network ls`). Set it as `PROXY_NETWORK` (default `npm_proxy`), or create it (`docker network create npm_proxy`) and attach NPM (`docker network connect npm_proxy <npm-container>`).
+2. **Files:** put `docker-compose.yml` and a `.env` (mode 600) into e.g. `/opt/freezer`. `.env` needs `IMAGE_TAG`, `POSTGRES_PASSWORD`, `BETTER_AUTH_SECRET`, `ZERO_API_KEY`, `ZERO_ADMIN_PASSWORD`, `POCKET_ID_URL`, `POCKET_ID_CLIENT_ID`, `POCKET_ID_CLIENT_SECRET`, `POCKET_ID_API_KEY` and optionally `POCKET_ID_SIGNUP_GROUP_IDS` (see `.env.example`). Hostnames default to the values below; override with `FREEZER_HOST` and `SYNC_HOST`. Keep a copy of `.env` somewhere safe.
+3. **Start the stack before creating proxy hosts.** NPM's nginx resolves the forward hostnames when it loads its config; if the containers don't exist yet, NPM fails with "Internal Error".
+   ```bash
+   docker compose pull
+   docker compose up -d --no-build
+   docker compose ps     # all healthy, migrate "Exited (0)"
+   docker exec <npm-container> getent hosts freezer-web freezer-api freezer-zero   # NPM must resolve them
+   ```
+4. **DNS and proxy hosts** (SSL with Force SSL and HSTS):
 
    | Hostname | Forward to | Notes |
    | --- | --- | --- |
-   | `freezer.malte-nowatzky.de` | `freezer-web` : `8080` | **Custom location** `/api` → `freezer-api` : `3000` |
+   | `freezer.malte-nowatzky.de` | `freezer-web` : `8080` | **Custom location** `/api` → `freezer-api` : `3000` (hostname only, no path) |
    | `sync.freezer.malte-nowatzky.de` | `freezer-zero` : `4848` | **Enable "Websockets Support"** (required) |
-   | `id.malte-nowatzky.de` | `freezer-pocket-id` : `1411` | |
 
-5. **Build and start Pocket ID:**
-   ```bash
-   docker compose build
-   docker compose up -d pocket-id
-   ```
-6. **Set up Pocket ID** at `https://id.malte-nowatzky.de/setup`, the same way as in dev, with:
-   - Callback URL: `https://freezer.malte-nowatzky.de/api/auth/callback/pocket-id`
-   - Put the real `POCKET_ID_CLIENT_ID`, `POCKET_ID_CLIENT_SECRET` and `POCKET_ID_API_KEY` into `.env`.
-7. **Start everything:**
-   ```bash
-   docker compose up -d
-   docker compose ps   # all services healthy, migrate "Exited (0)"
-   ```
-
-**Images:** built locally (for the VPS's CPU architecture) and pushed to Docker Hub as `${IMAGE_REPO}:api-<tag>` and `${IMAGE_REPO}:web-<tag>` (default repo `maltenow/freezer-manager`). The VPS only needs `docker-compose.yml` and `.env`; it pulls the images.
+   **With Cloudflare:** request the certificates with NPM's **DNS challenge** (provider Cloudflare, API token with "Edit zone DNS"), and set SSL/TLS to **Full (strict)**. `sync.freezer.…` is two levels deep, which Cloudflare's free edge certificate does not cover: set that record to **DNS only** (grey cloud). The name must stay under `freezer.…`, because the session cookie for that domain has to reach zero-cache.
+5. **Check:** `curl https://freezer.malte-nowatzky.de/api/health` → `{"ok":true}`, then sign in and install the PWA (Chrome → "Install app").
 
 **Deploying an update:** push new images with a new tag, set `IMAGE_TAG` in the VPS `.env`, then `docker compose pull && docker compose up -d --no-build`. `migrate` runs again first; migrations that already ran are skipped. **Rollback:** set the previous `IMAGE_TAG` and run the same commands. Schema migrations are not reverted, so only roll back across releases without migrations, or restore the database backup.
 
+### Optional: bundled Pocket ID
+
+To run Pocket ID inside this stack instead: set `COMPOSE_PROFILES=bundled-pocket-id`, `POCKET_ID_URL=https://<its hostname>`, `POCKET_ID_INTERNAL_URL=http://pocket-id:1411` and `POCKET_ID_ENCRYPTION_KEY` (`openssl rand -base64 32`) in `.env`; add an NPM proxy host `<its hostname>` → `freezer-pocket-id` : `1411`; then set it up at `https://<its hostname>/setup` as above. Its data lives in the `pocket-id-data` volume; losing `POCKET_ID_ENCRYPTION_KEY` makes it unusable.
+
 Notes:
 - The session cookie is set for `freezer.malte-nowatzky.de` (`COOKIE_DOMAIN`), so the browser also sends it to `sync.freezer.malte-nowatzky.de`, and zero-cache forwards it to the API.
-- Logs: the API writes one JSON object per line (`docker compose logs api`). Unhandled API errors and browser errors (sent by the PWA to `/api/client-errors`, size- and rate-limited) appear as `"level":"error"` lines, so they can be shipped to Loki or GlitchTip later without code changes.
+- Logins depend on Pocket ID being reachable; existing sessions last 30 days, and sync/editing work without it.
+- Logs: the API writes one JSON object per line (`docker compose logs api`). Unhandled API errors and browser errors (sent by the PWA to `/api/client-errors`, size- and rate-limited) appear as `"level":"error"` lines.
 - CSRF: the API rejects state-changing requests to its own endpoints unless they come from the web app's origin. `/api/auth` is checked by Better Auth itself, and `/api/zero` by the zero-cache API key.
-- The API reaches Pocket ID internally (`http://pocket-id:1411`) for discovery and signup links. The OIDC token exchange uses the public `https://id…` URL, so the VPS must be able to reach its own public hostnames (hairpin through NPM).
 - `VITE_ZERO_CACHE_URL` and `VITE_PUBLIC_URL` are baked in at image build time (see the `web` build args). `ZERO_ORIGIN` (for the CSP) is set at runtime.
 
 ## Limitations
