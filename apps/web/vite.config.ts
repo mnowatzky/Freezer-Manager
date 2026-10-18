@@ -13,8 +13,9 @@ export default defineConfig({
       manifest: {
         name: "Freezer Manager",
         short_name: "Freezer",
-        description: "Was ist in welchem Fach eingefroren?",
-        lang: "de",
+        // One manifest for all users, so it is in English (the UI itself follows the browser language).
+        description: "What's frozen in which drawer?",
+        lang: "en",
         // No theme_color on purpose: Chrome paints an installed app's navigation bar with it, and a
         // manifest can't have a dark variant (white bar in dark mode). Without it the bar follows the
         // system theme; the status bar uses the light/dark <meta name="theme-color"> in index.html.

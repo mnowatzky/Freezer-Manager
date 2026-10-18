@@ -11,10 +11,8 @@ COPY apps/web/package.json apps/web/
 RUN pnpm install --frozen-lockfile --filter @freezer/web...
 COPY packages/shared packages/shared
 COPY apps/web apps/web
-# Baked into the bundle at build time.
-ARG VITE_ZERO_CACHE_URL
-ARG VITE_PUBLIC_URL
-ENV VITE_ZERO_CACHE_URL=$VITE_ZERO_CACHE_URL VITE_PUBLIC_URL=$VITE_PUBLIC_URL
+# No domains are baked in: nginx injects ZERO_ORIGIN into index.html at runtime, and QR stickers
+# use the page's own origin.
 RUN pnpm --filter @freezer/web build
 
 # --- runtime: unprivileged nginx (runs as user nginx, listens on 8080) -----------------------
@@ -23,7 +21,7 @@ COPY apps/web/nginx/default.conf.template /etc/nginx/templates/default.conf.temp
 COPY apps/web/nginx/security-headers.conf /etc/nginx/snippets/security-headers.conf
 COPY apps/web/nginx/19-zero-ws-origin.envsh /docker-entrypoint.d/19-zero-ws-origin.envsh
 COPY --from=build /repo/apps/web/dist /usr/share/nginx/html
-# Public zero-cache origin for the Content-Security-Policy (required at runtime).
+# Public zero-cache origin, used by the app and allowed in the Content-Security-Policy (required at runtime).
 ENV ZERO_ORIGIN=""
 EXPOSE 8080
 HEALTHCHECK --interval=15s --timeout=3s --start-period=5s --retries=3 \

@@ -1,4 +1,4 @@
-import { de } from "@freezer/shared/i18n";
+import { locale, t } from "../lib/i18n";
 import { AnimatePresence, motion, useMotionValueEvent, useScroll } from "motion/react";
 import { useMemo, useState } from "react";
 import { Navigate, useNavigate } from "react-router";
@@ -41,7 +41,7 @@ function FreezerView({ data, freezer }: { data: ReturnType<typeof useFreezerData
   const items = useMemo(() => {
     const q = search.trim().toLocaleLowerCase("de");
     const filtered = q ? freezer.items.filter((i) => i.name.toLocaleLowerCase("de").includes(q)) : [...freezer.items];
-    if (view === "name") filtered.sort((a, b) => a.name.localeCompare(b.name, "de"));
+    if (view === "name") filtered.sort((a, b) => a.name.localeCompare(b.name, locale));
     return filtered; // already sorted oldest first by the query
   }, [freezer.items, search, view]);
 
@@ -49,13 +49,13 @@ function FreezerView({ data, freezer }: { data: ReturnType<typeof useFreezerData
     <div className="min-h-dvh pb-40">
       <TopAppBar
         title={freezer.name}
-        subtitle={de.freezer.itemCount(freezer.items.length)}
+        subtitle={t.freezer.itemCount(freezer.items.length)}
         actions={
           <>
             {data.freezers.length > 1 && (
-              <IconButton icon="kitchen" label={de.freezer.switchFreezer} onClick={() => setDialog("switch")} />
+              <IconButton icon="kitchen" label={t.freezer.switchFreezer} onClick={() => setDialog("switch")} />
             )}
-            <IconButton icon="settings" label={de.freezer.settings} onClick={() => void navigate("/einstellungen")} />
+            <IconButton icon="settings" label={t.freezer.settings} onClick={() => void navigate("/settings")} />
           </>
         }
       />
@@ -66,28 +66,28 @@ function FreezerView({ data, freezer }: { data: ReturnType<typeof useFreezerData
           <input
             type="search"
             className="type-body-large min-w-0 flex-1 bg-transparent outline-none placeholder:text-on-surface-variant"
-            placeholder={de.freezer.search}
-            aria-label={de.freezer.search}
+            placeholder={t.freezer.search}
+            aria-label={t.freezer.search}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </label>
 
         <ConnectedButtonGroup
-          label={de.freezer.view}
+          label={t.freezer.view}
           value={view}
           onChange={setView}
           options={[
-            { value: "drawer", label: de.freezer.viewDrawer, icon: "shelves" },
-            { value: "date", label: de.freezer.viewDate, icon: "calendar_month" },
-            { value: "name", label: de.freezer.viewName, icon: "sort_by_alpha" },
+            { value: "drawer", label: t.freezer.viewDrawer, icon: "shelves" },
+            { value: "date", label: t.freezer.viewDate, icon: "calendar_month" },
+            { value: "name", label: t.freezer.viewName, icon: "sort_by_alpha" },
           ]}
         />
 
         {freezer.items.length === 0 ? (
-          <EmptyState icon="ac_unit" title={de.freezer.noItems} hint={de.freezer.noItemsHint} />
+          <EmptyState icon="ac_unit" title={t.freezer.noItems} hint={t.freezer.noItemsHint} />
         ) : items.length === 0 ? (
-          <EmptyState icon="search" title={de.freezer.noResults} />
+          <EmptyState icon="search" title={t.freezer.noResults} />
         ) : view === "drawer" ? (
           freezer.drawers.map((d) => {
             const inDrawer = items.filter((i) => i.drawerId === d.id);
@@ -101,7 +101,7 @@ function FreezerView({ data, freezer }: { data: ReturnType<typeof useFreezerData
                 </h2>
                 {inDrawer.length === 0 ? (
                   <p className="type-body-medium rounded-li bg-surface-container-low px-4 py-4 text-on-surface-variant">
-                    {de.freezer.empty}
+                    {t.freezer.empty}
                   </p>
                 ) : (
                   <ItemList items={inDrawer} onSelect={setSelectedId} />
@@ -116,14 +116,14 @@ function FreezerView({ data, freezer }: { data: ReturnType<typeof useFreezerData
 
       {/* FAB stack: secondary "Scannen" above the extended primary "Einfrieren". */}
       <div className="fixed right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-20 flex flex-col items-end gap-3">
-        <Fab icon="qr_code_scanner" label={de.freezer.scan} variant="secondary" size="s" onClick={() => setDialog("scan")} />
-        <Fab icon="ac_unit" label={de.freezer.freeze} extended={fabExtended} disabled={!canWrite} onClick={() => setDialog("freeze")} />
+        <Fab icon="qr_code_scanner" label={t.freezer.scan} variant="secondary" size="s" onClick={() => setDialog("scan")} />
+        <Fab icon="ac_unit" label={t.freezer.freeze} extended={fabExtended} disabled={!canWrite} onClick={() => setDialog("freeze")} />
       </div>
 
       <ItemDialog open={dialog === "freeze"} freezer={freezer} onClose={() => setDialog(null)} />
       <Scanner open={dialog === "scan"} onResult={(n) => void navigate(`/c/${n}`)} onClose={() => setDialog(null)} />
       <ItemSheet freezer={freezer} item={selected} onClose={() => setSelectedId(null)} />
-      <Sheet open={dialog === "switch"} title={de.freezer.switchFreezer} onClose={() => setDialog(null)}>
+      <Sheet open={dialog === "switch"} title={t.freezer.switchFreezer} onClose={() => setDialog(null)}>
         <ListGroup>
           {data.freezers.map((f) => (
             <ListItem

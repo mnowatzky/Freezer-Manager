@@ -1,4 +1,4 @@
-import { de } from "@freezer/shared/i18n";
+import { t } from "../lib/i18n";
 import { useConnectionState } from "@rocicorp/zero/react";
 import { AnimatePresence, motion } from "motion/react";
 import { Navigate, useLocation, useOutlet } from "react-router";
@@ -62,7 +62,7 @@ function OfflineBanner() {
         >
           <div className="type-label-large flex items-center justify-center gap-2 px-4 py-2.5">
             <Icon name="cloud_off" size={20} />
-            {de.offline}
+            {t.offline}
           </div>
         </motion.div>
       )}
@@ -73,7 +73,7 @@ function OfflineBanner() {
 export function FullScreenLoading() {
   return (
     <div className="flex min-h-dvh items-center justify-center">
-      <LoadingIndicator label={de.common.loading} />
+      <LoadingIndicator label={t.common.loading} />
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { AnimatePresence, motion, useDragControls, type PanInfo } from "motion/react";
-import { de } from "@freezer/shared/i18n";
+import { t } from "../../lib/i18n";
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { motionScheme } from "../../theme/motion";
@@ -115,7 +115,7 @@ export function Sheet({
               <h2 id={titleId} className="type-headline-small min-w-0 flex-1">
                 {title}
               </h2>
-              <IconButton icon="close" label={de.common.close} className="-mt-1 -mr-2" onClick={onClose} />
+              <IconButton icon="close" label={t.common.close} className="-mt-1 -mr-2" onClick={onClose} />
             </motion.div>
             {children}
           </motion.div>

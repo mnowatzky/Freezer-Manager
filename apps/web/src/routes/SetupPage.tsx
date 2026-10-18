@@ -1,5 +1,5 @@
 import { MAX_DRAWERS } from "@freezer/shared/domain";
-import { de } from "@freezer/shared/i18n";
+import { locale, t } from "../lib/i18n";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { useNavigate } from "react-router";
@@ -21,7 +21,7 @@ export function SetupPage() {
     e.preventDefault();
     const id = crypto.randomUUID();
     const drawerIds = Array.from({ length: drawerCount }, () => crypto.randomUUID());
-    if (await mutate(mutators.freezer.create({ id, name: name.trim(), drawerIds }))) {
+    if (await mutate(mutators.freezer.create({ id, name: name.trim(), drawerIds, locale }))) {
       try {
         localStorage.setItem(ACTIVE_KEY, id);
       } catch {
@@ -33,16 +33,16 @@ export function SetupPage() {
 
   return (
     <div className="min-h-dvh">
-      <TopAppBar title={de.setup.title} navigation={<IconButton icon="arrow_back" label={de.common.back} onClick={() => void navigate(-1)} />} />
+      <TopAppBar title={t.setup.title} navigation={<IconButton icon="arrow_back" label={t.common.back} onClick={() => void navigate(-1)} />} />
       <form onSubmit={(e) => void submit(e)} className="mx-auto flex max-w-md flex-col gap-6 px-4">
-        <TextField label={de.setup.name} value={name} autoFocus leadingIcon="kitchen" supporting={de.setup.namePlaceholder} onChange={(e) => setName(e.target.value)} />
+        <TextField label={t.setup.name} value={name} autoFocus leadingIcon="kitchen" supporting={t.setup.namePlaceholder} onChange={(e) => setName(e.target.value)} />
 
         <div>
-          <div className="type-title-medium mb-3">{de.setup.drawerCount}</div>
+          <div className="type-title-medium mb-3">{t.setup.drawerCount}</div>
           <div className="flex items-center gap-4">
-            <IconButton icon="remove" label={de.common.less} variant="tonal" size={48} onClick={() => change(-1)} />
+            <IconButton icon="remove" label={t.common.less} variant="tonal" size={48} onClick={() => change(-1)} />
             <div className="type-display-small type-emphasized w-12 text-center">{drawerCount}</div>
-            <IconButton icon="add" label={de.common.more} variant="tonal" size={48} onClick={() => change(1)} />
+            <IconButton icon="add" label={t.common.more} variant="tonal" size={48} onClick={() => change(1)} />
           </div>
           {/* Preview of the drawers as stacked tiles that spring in/out. */}
           <div className="mt-5 flex flex-col gap-0.5">
@@ -57,7 +57,7 @@ export function SetupPage() {
                   exit={{ opacity: 0, height: 0 }}
                   transition={motionScheme.defaultSpatial}
                 >
-                  {de.drawerName(i + 1)}
+                  {t.drawerName(i + 1)}
                 </motion.div>
               ))}
             </AnimatePresence>
@@ -65,7 +65,7 @@ export function SetupPage() {
         </div>
 
         <Button type="submit" size="m" icon="check" className="w-full" disabled={!name.trim() || !canWrite}>
-          {de.setup.create}
+          {t.setup.create}
         </Button>
       </form>
     </div>

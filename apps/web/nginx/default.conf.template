@@ -23,6 +23,11 @@ server {
   # - connect-src allows the zero-cache origin (https + wss)
   set $csp "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' ${ZERO_ORIGIN} ${ZERO_WS_ORIGIN}; worker-src 'self'; manifest-src 'self'; media-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
 
+  # Runtime config: the app reads the zero-cache URL from a <meta> in index.html, so the image
+  # has no domain baked in.
+  sub_filter '__ZERO_ORIGIN__' '${ZERO_ORIGIN}';
+  sub_filter_once on;
+
   # add_header in a location replaces the server-level ones, so every location includes these.
   include /etc/nginx/snippets/security-headers.conf;
 

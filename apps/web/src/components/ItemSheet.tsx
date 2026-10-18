@@ -1,4 +1,4 @@
-import { de } from "@freezer/shared/i18n";
+import { t } from "../lib/i18n";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { ageLabel, formatDate, quantityLabel } from "../lib/format";
@@ -25,7 +25,7 @@ export function ItemSheet({ freezer, item, onClose }: { freezer: FreezerDetail; 
     setShown(item);
   }
 
-  const title = mode === "take" ? de.item.takeTitle : mode === "edit" ? de.item.edit : shown?.name;
+  const title = mode === "take" ? t.item.takeTitle : mode === "edit" ? t.item.edit : shown?.name;
 
   return (
     <Sheet open={!!item} title={title} onClose={onClose}>
@@ -52,12 +52,12 @@ function Details({ freezer, item, onMode }: { freezer: FreezerDetail; item: Item
   const canWrite = useCanWrite();
   const drawer = freezer.drawers.find((d) => d.id === item.drawerId);
   const rows: [string, string, React.ReactNode][] = [
-    ["scale", de.item.quantity, quantityLabel(item.quantity, item.unit)],
-    ["shelves", de.item.drawer, drawer?.name],
-    ["calendar_month", de.item.frozenAt, `${formatDate(item.frozenAt)} · ${ageLabel(item.frozenAt)}`],
+    ["scale", t.item.quantity, quantityLabel(item.quantity, item.unit)],
+    ["shelves", t.item.drawer, drawer?.name],
+    ["calendar_month", t.item.frozenAt, `${formatDate(item.frozenAt)} · ${ageLabel(item.frozenAt)}`],
   ];
-  if (item.containerNumber !== null) rows.push(["qr_code_2", de.item.container, `#${item.containerNumber}`]);
-  if (item.notes) rows.push(["notes", de.item.notes, <span key="notes" className="whitespace-pre-wrap">{item.notes}</span>]);
+  if (item.containerNumber !== null) rows.push(["qr_code_2", t.item.container, `#${item.containerNumber}`]);
+  if (item.notes) rows.push(["notes", t.item.notes, <span key="notes" className="whitespace-pre-wrap">{item.notes}</span>]);
 
   return (
     <>
@@ -74,10 +74,10 @@ function Details({ freezer, item, onMode }: { freezer: FreezerDetail; item: Item
       </dl>
       <div className="flex justify-end gap-2">
         <Button variant="tonal" icon="edit" disabled={!canWrite} onClick={() => onMode("edit")}>
-          {de.item.edit}
+          {t.item.edit}
         </Button>
         <Button icon="remove" disabled={!canWrite} onClick={() => onMode("take")}>
-          {de.item.take}
+          {t.item.take}
         </Button>
       </div>
     </>
@@ -102,7 +102,7 @@ function Take({ item, onDone, onBack }: { item: ItemRow; onDone: () => void; onB
         {item.name}: {quantityLabel(item.quantity, item.unit)}
       </p>
       <div className="mb-2 flex items-center justify-center gap-6">
-        <IconButton icon="remove" label={de.common.less} variant="tonal" size={56} onClick={() => setAmount((a) => clamp(a - step))} />
+        <IconButton icon="remove" label={t.common.less} variant="tonal" size={56} onClick={() => setAmount((a) => clamp(a - step))} />
         <div className="min-w-32 text-center">
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
@@ -117,20 +117,20 @@ function Take({ item, onDone, onBack }: { item: ItemRow; onDone: () => void; onB
             </motion.div>
           </AnimatePresence>
         </div>
-        <IconButton icon="add" label={de.common.more} variant="tonal" size={56} onClick={() => setAmount((a) => clamp(a + step))} />
+        <IconButton icon="add" label={t.common.more} variant="tonal" size={56} onClick={() => setAmount((a) => clamp(a + step))} />
       </div>
       <p className="type-body-small mb-6 text-center text-on-surface-variant">
         → {quantityLabel(remaining, item.unit)}
       </p>
       <div className="flex flex-wrap justify-end gap-2">
         <Button variant="text" onClick={onBack}>
-          {de.common.back}
+          {t.common.back}
         </Button>
         <Button variant="tonal" disabled={!canWrite} onClick={() => void take(item.quantity)}>
-          {de.common.all}
+          {t.common.all}
         </Button>
         <Button icon="remove" disabled={!canWrite} onClick={() => void take(amount)}>
-          {de.item.takeConfirm}
+          {t.item.takeConfirm}
         </Button>
       </div>
     </>

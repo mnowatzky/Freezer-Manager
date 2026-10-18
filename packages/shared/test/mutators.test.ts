@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it } from "vitest";
 import * as dbSchema from "../src/db-schema";
 import { todayAsDate } from "../src/domain";
+import { de, errorMessage } from "../src/i18n";
 import { mutators } from "../src/mutators";
 import { queries } from "../src/queries";
 import { schema, zql } from "../src/zero-schema.gen";
@@ -64,33 +65,38 @@ describe("permissions", () => {
     expect(owner?.role).toBe("owner");
   });
 
+  it("names the drawers in the creator's language", async () => {
+    await as("alice", (m) => call(m.freezer.create({ id: "f2", name: "Garage", drawerIds: ["e1"], locale: "en" })));
+    expect((await zdb.run(zql.drawer.where("freezerId", "f2"))).map((d) => d.name)).toEqual(["Drawer 1"]);
+  });
+
   it("non-member cannot add items", async () => {
-    await expect(as("eve", (m) => call(m.item.add(addArgs())))).rejects.toThrow(/Kein Zugriff/);
+    await expect(as("eve", (m) => call(m.item.add(addArgs())))).rejects.toThrow(/No access/);
   });
 
   it("non-member cannot take from or delete an item", async () => {
     await as("bob", (m) => call(m.item.add(addArgs())));
-    await expect(as("eve", (m) => call(m.item.take({ id: "i1", amount: 1 })))).rejects.toThrow(/Kein Zugriff/);
-    await expect(as("eve", (m) => call(m.item.delete({ id: "i1" })))).rejects.toThrow(/Kein Zugriff/);
+    await expect(as("eve", (m) => call(m.item.take({ id: "i1", amount: 1 })))).rejects.toThrow(/No access/);
+    await expect(as("eve", (m) => call(m.item.delete({ id: "i1" })))).rejects.toThrow(/No access/);
   });
 
   it("member cannot remove others or delete the freezer", async () => {
     await expect(as("bob", (m) => call(m.member.remove({ freezerId: "f1", userId: "alice" })))).rejects.toThrow(
-      /Besitzer/,
+      /owner/,
     );
-    await expect(as("bob", (m) => call(m.freezer.delete({ freezerId: "f1" })))).rejects.toThrow(/Besitzer/);
+    await expect(as("bob", (m) => call(m.freezer.delete({ freezerId: "f1" })))).rejects.toThrow(/owner/);
   });
 
   it("owner can remove a member but not themselves", async () => {
     await expect(as("alice", (m) => call(m.member.remove({ freezerId: "f1", userId: "alice" })))).rejects.toThrow(
-      /Besitzer/,
+      /owner/,
     );
     await as("alice", (m) => call(m.member.remove({ freezerId: "f1", userId: "bob" })));
     expect(await zdb.run(zql.freezerMember.where("userId", "bob"))).toHaveLength(0);
   });
 
   it("member can leave; owner cannot leave", async () => {
-    await expect(as("alice", (m) => call(m.member.leave({ freezerId: "f1" })))).rejects.toThrow(/Besitzer/);
+    await expect(as("alice", (m) => call(m.member.leave({ freezerId: "f1" })))).rejects.toThrow(/owner/);
     await as("bob", (m) => call(m.member.leave({ freezerId: "f1" })));
     expect(await zdb.run(zql.freezerMember.where("userId", "bob"))).toHaveLength(0);
   });
@@ -102,8 +108,8 @@ describe("permissions", () => {
       const { freezerId: _f, ...rest } = addArgs({ name: "Buletten", ...over });
       return rest;
     };
-    await expect(as("eve", (m) => call(m.item.update(update())))).rejects.toThrow(/Kein Zugriff/);
-    await expect(as("bob", (m) => call(m.item.update(update({ containerNumber: 6 }))))).rejects.toThrow(/Behälter 6/);
+    await expect(as("eve", (m) => call(m.item.update(update())))).rejects.toThrow(/No access/);
+    await expect(as("bob", (m) => call(m.item.update(update({ containerNumber: 6 }))))).rejects.toThrow(/Container 6/);
     await as("bob", (m) => call(m.item.update(update({ drawerId: "d2", quantity: 3 }))));
     expect(await zdb.run(zql.item.where("id", "i1").one())).toMatchObject({ name: "Buletten", drawerId: "d2", quantity: 3 });
   });
@@ -112,8 +118,8 @@ describe("permissions", () => {
     await zdb.transaction((tx) =>
       tx.mutate.invite.insert({ id: "inv1", freezerId: "f1", token: "t", createdBy: "alice", createdAt: Date.now(), expiresAt: Date.now() + 1e6 }),
     );
-    await expect(as("bob", (m) => call(m.invite.revoke({ inviteId: "inv1" })))).rejects.toThrow(/Besitzer/);
-    await expect(as("eve", (m) => call(m.invite.revoke({ inviteId: "inv1" })))).rejects.toThrow(/Kein Zugriff/);
+    await expect(as("bob", (m) => call(m.invite.revoke({ inviteId: "inv1" })))).rejects.toThrow(/owner/);
+    await expect(as("eve", (m) => call(m.invite.revoke({ inviteId: "inv1" })))).rejects.toThrow(/No access/);
     await as("alice", (m) => call(m.invite.revoke({ inviteId: "inv1" })));
     expect((await zdb.run(zql.invite.where("id", "inv1").one()))?.revokedAt).toBeTypeOf("number");
   });
@@ -121,21 +127,21 @@ describe("permissions", () => {
   it("suggestion.delete: members only", async () => {
     await as("alice", (m) => call(m.item.add(addArgs({ containerNumber: null }))));
     const [s] = await zdb.run(zql.foodSuggestion.where("freezerId", "f1"));
-    await expect(as("eve", (m) => call(m.suggestion.delete({ id: s.id })))).rejects.toThrow(/Kein Zugriff/);
+    await expect(as("eve", (m) => call(m.suggestion.delete({ id: s.id })))).rejects.toThrow(/No access/);
     await as("bob", (m) => call(m.suggestion.delete({ id: s.id })));
     expect(await zdb.run(zql.foodSuggestion.where("freezerId", "f1"))).toHaveLength(0);
   });
 
   it("rejects a drawer from another freezer", async () => {
     await as("eve", (m) => call(m.freezer.create({ id: "f2", name: "Eve", drawerIds: ["e1"] })));
-    await expect(as("alice", (m) => call(m.item.add(addArgs({ drawerId: "e1" }))))).rejects.toThrow(/Nicht gefunden/);
+    await expect(as("alice", (m) => call(m.item.add(addArgs({ drawerId: "e1" }))))).rejects.toThrow(/Not found/);
   });
 });
 
 describe("items", () => {
   it("container number is unique per freezer", async () => {
     await as("alice", (m) => call(m.item.add(addArgs())));
-    await expect(as("bob", (m) => call(m.item.add(addArgs({ id: "i2" }))))).rejects.toThrow(/Behälter 5/);
+    await expect(as("bob", (m) => call(m.item.add(addArgs({ id: "i2" }))))).rejects.toThrow(/Container 5/);
     // Same number in another freezer is fine.
     await as("eve", (m) => call(m.freezer.create({ id: "f2", name: "Eve", drawerIds: ["e1"] })));
     await as("eve", (m) => call(m.item.add(addArgs({ id: "i3", freezerId: "f2", drawerId: "e1" }))));
@@ -145,7 +151,7 @@ describe("items", () => {
     await as("alice", (m) => call(m.item.add(addArgs())));
     await as("bob", (m) => call(m.item.take({ id: "i1", amount: 3 })));
     expect((await zdb.run(zql.item.where("id", "i1").one()))?.quantity).toBe(2);
-    await expect(as("bob", (m) => call(m.item.take({ id: "i1", amount: 3 })))).rejects.toThrow(/Ungültige Menge/);
+    await expect(as("bob", (m) => call(m.item.take({ id: "i1", amount: 3 })))).rejects.toThrow(/Invalid amount/);
     await as("bob", (m) => call(m.item.take({ id: "i1", amount: 2 })));
     expect(await zdb.run(zql.item.where("id", "i1").one())).toBeUndefined();
     await as("alice", (m) => call(m.item.add(addArgs({ id: "i2" }))));
@@ -193,5 +199,13 @@ describe("queries", () => {
     expect(await run("freezers.invites", { freezerId: "f1" }, "alice")).toMatchObject([{ token: "secret-token" }]);
     await as("alice", (m) => call(m.invite.revoke({ inviteId: "inv1" })));
     expect(await run("freezers.invites", { freezerId: "f1" }, "alice")).toEqual([]);
+  });
+});
+
+describe("errors", () => {
+  it("carry a code that the client shows in its own language", async () => {
+    await as("bob", (m) => call(m.item.add(addArgs({ containerNumber: 5 }))));
+    const error = await as("bob", (m) => call(m.item.add(addArgs({ id: "i2", containerNumber: 5 })))).catch((e: unknown) => e);
+    expect(errorMessage(de, error as Error & { details?: unknown })).toBe("Behälter 5 ist bereits belegt.");
   });
 });

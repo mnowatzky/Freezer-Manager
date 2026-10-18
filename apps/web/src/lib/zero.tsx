@@ -3,14 +3,22 @@ import { mutators } from "@freezer/shared/mutators";
 import { schema } from "@freezer/shared/zero-schema";
 import { useConnectionState, useZero, ZeroProvider } from "@rocicorp/zero/react";
 import { useCallback, useEffect, useMemo, type ReactNode } from "react";
+import { errorMessage } from "@freezer/shared/i18n";
+import { t } from "./i18n";
 import { useToast } from "./toast";
+
+// The production image injects the zero-cache URL into index.html at runtime, so one image works for
+// any domain. The placeholder stays when index.html isn't served by that nginx (dev server).
+const injectedCacheURL = document.querySelector<HTMLMetaElement>('meta[name="zero-cache-url"]')?.content;
+const cacheURL =
+  injectedCacheURL && injectedCacheURL !== "__ZERO_ORIGIN__" ? injectedCacheURL : import.meta.env.VITE_ZERO_CACHE_URL;
 
 export function ZeroRoot({ userID, children }: { userID: string; children: ReactNode }) {
   // ZeroProvider recreates the Zero instance when any prop changes identity, so keep context stable.
   const context = useMemo(() => ({ userID }), [userID]);
   return (
     <ZeroProvider
-      cacheURL={import.meta.env.VITE_ZERO_CACHE_URL}
+      cacheURL={cacheURL}
       userID={userID}
       context={context}
       schema={schema}
@@ -50,12 +58,12 @@ export function useMutate() {
       const result = zero.mutate(request);
       const client = await result.client;
       if (client.type === "error") {
-        toast(client.error.message);
+        toast(errorMessage(t, client.error));
         return false;
       }
       // Only app errors (e.g. a permission check failing on the server) are worth showing;
       // transport errors are covered by the offline banner.
-      void result.server.then((r) => r.type === "error" && r.error.type === "app" && toast(r.error.message));
+      void result.server.then((r) => r.type === "error" && r.error.type === "app" && toast(errorMessage(t, r.error)));
       return true;
     },
     [zero, toast],

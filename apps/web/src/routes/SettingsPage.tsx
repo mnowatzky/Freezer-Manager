@@ -1,4 +1,4 @@
-import { de } from "@freezer/shared/i18n";
+import { t } from "../lib/i18n";
 import { AnimatePresence, motion } from "motion/react";
 import QRCode from "qrcode";
 import { queries } from "@freezer/shared/queries";
@@ -37,11 +37,11 @@ function Settings({ freezer, userId }: { freezer: FreezerDetail; userId: string 
     setCreating(true);
     try {
       const res = await fetch(`/api/freezers/${freezer.id}/invites`, { method: "POST" });
-      if (res.status === 403) toast(de.errors.notOwner);
-      else if (!res.ok) toast(de.errors.generic);
+      if (res.status === 403) toast(t.errors.notOwner);
+      else if (!res.ok) toast(t.errors.generic);
       // On success the new invite row arrives via Zero sync.
     } catch {
-      toast(de.errors.network);
+      toast(t.errors.network);
     } finally {
       setCreating(false);
     }
@@ -50,13 +50,13 @@ function Settings({ freezer, userId }: { freezer: FreezerDetail; userId: string 
   return (
     <div className="min-h-dvh pb-12">
       <TopAppBar
-        title={de.settings.title}
+        title={t.settings.title}
         subtitle={freezer.name}
-        navigation={<IconButton icon="arrow_back" label={de.common.back} onClick={() => void navigate("/")} />}
+        navigation={<IconButton icon="arrow_back" label={t.common.back} onClick={() => void navigate("/")} />}
       />
       <div className="mx-auto flex max-w-2xl flex-col gap-8 px-4">
         <section>
-          <SectionTitle icon="group">{de.settings.members}</SectionTitle>
+          <SectionTitle icon="group">{t.settings.members}</SectionTitle>
           <ListGroup>
             <AnimatePresence initial={false}>
               {freezer.members.map((m) => (
@@ -68,13 +68,13 @@ function Settings({ freezer, userId }: { freezer: FreezerDetail; userId: string 
                     </span>
                   }
                   headline={m.user?.name}
-                  supporting={m.role === "owner" ? `${de.settings.owner} · ${m.user?.email}` : m.user?.email}
+                  supporting={m.role === "owner" ? `${t.settings.owner} · ${m.user?.email}` : m.user?.email}
                   trailing={
                     m.role !== "owner" &&
                     isOwner && (
                       <IconButton
                         icon="person_remove"
-                        label={de.settings.remove}
+                        label={t.settings.remove}
                         disabled={!canWrite}
                         onClick={() => void mutate(mutators.member.remove({ freezerId: freezer.id, userId: m.userId }))}
                       />
@@ -90,10 +90,10 @@ function Settings({ freezer, userId }: { freezer: FreezerDetail; userId: string 
           <section>
             <div className="mb-3 flex items-center justify-between gap-2">
               <SectionTitle icon="person_add" className="mb-0">
-                {de.settings.invites}
+                {t.settings.invites}
               </SectionTitle>
               <Button variant="tonal" icon="add" disabled={!canWrite || creating} onClick={() => void createInvite()}>
-                {de.settings.createInvite}
+                {t.settings.createInvite}
               </Button>
             </div>
             <div className="flex flex-col gap-3">
@@ -113,9 +113,9 @@ function Settings({ freezer, userId }: { freezer: FreezerDetail; userId: string 
 
         <section>
           <ListGroup>
-            <ListItem leading={<Icon name="print" className="text-primary" />} headline={de.settings.labels} onClick={() => void navigate("/etiketten")} />
-            <ListItem leading={<Icon name="add" className="text-primary" />} headline={de.freezer.newFreezer} onClick={() => void navigate("/setup")} />
-            <ListItem leading={<Icon name="logout" className="text-primary" />} headline={de.auth.signOut} onClick={() => void signOut()} />
+            <ListItem leading={<Icon name="print" className="text-primary" />} headline={t.settings.labels} onClick={() => void navigate("/labels")} />
+            <ListItem leading={<Icon name="add" className="text-primary" />} headline={t.freezer.newFreezer} onClick={() => void navigate("/setup")} />
+            <ListItem leading={<Icon name="logout" className="text-primary" />} headline={t.auth.signOut} onClick={() => void signOut()} />
           </ListGroup>
         </section>
 
@@ -126,13 +126,13 @@ function Settings({ freezer, userId }: { freezer: FreezerDetail; userId: string 
               icon="delete"
               disabled={!canWrite}
               onClick={() => {
-                if (!confirm(de.settings.confirmDelete)) return;
+                if (!confirm(t.settings.confirmDelete)) return;
                 void mutate(mutators.freezer.delete({ freezerId: freezer.id })).then(
                   (ok) => ok && navigate("/", { replace: true }),
                 );
               }}
             >
-              {de.settings.deleteFreezer}
+              {t.settings.deleteFreezer}
             </Button>
           ) : (
             <Button
@@ -145,7 +145,7 @@ function Settings({ freezer, userId }: { freezer: FreezerDetail; userId: string 
                 )
               }
             >
-              {de.settings.leave}
+              {t.settings.leave}
             </Button>
           )}
         </section>
@@ -183,7 +183,7 @@ function InviteCard({ token, expiresAt, onRevoke }: { token: string; expiresAt: 
     >
       {qr && <img src={qr} alt="" className="size-44 rounded-l bg-surface-container-lowest p-2 dark:bg-transparent" />}
       <div className="flex w-full min-w-0 flex-1 flex-col gap-2 text-center sm:text-left">
-        <div className="type-label-large text-on-surface-variant">{de.settings.validUntil(formatDate(expiresAt))}</div>
+        <div className="type-label-large text-on-surface-variant">{t.settings.validUntil(formatDate(expiresAt))}</div>
         <div className="type-body-small truncate font-mono text-on-surface-variant">{url}</div>
         <div className="flex justify-center gap-2 sm:justify-start">
           <Button
@@ -191,10 +191,10 @@ function InviteCard({ token, expiresAt, onRevoke }: { token: string; expiresAt: 
             icon={copied ? "check" : "content_copy"}
             onClick={() => void navigator.clipboard.writeText(url).then(() => setCopied(true))}
           >
-            {copied ? de.settings.copied : de.settings.copyLink}
+            {copied ? t.settings.copied : t.settings.copyLink}
           </Button>
           <Button variant="text" onClick={onRevoke}>
-            {de.settings.revoke}
+            {t.settings.revoke}
           </Button>
         </div>
       </div>

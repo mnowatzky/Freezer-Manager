@@ -1,4 +1,4 @@
-import { de } from "@freezer/shared/i18n";
+import { t } from "../lib/i18n";
 import { motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router";
@@ -47,7 +47,7 @@ export function JoinPage() {
     try {
       const res = await fetch(`/api/invites/${encodeURIComponent(token)}/accept`, { method: "POST" });
       if (res.status === 404) return setInfo("invalid");
-      if (!res.ok) return toast(de.errors.generic);
+      if (!res.ok) return toast(t.errors.generic);
       const { freezerId } = (await res.json()) as { freezerId: string };
       try {
         localStorage.setItem("activeFreezerId", freezerId);
@@ -56,7 +56,7 @@ export function JoinPage() {
       }
       void navigate("/", { replace: true });
     } catch {
-      toast(de.errors.network);
+      toast(t.errors.network);
     } finally {
       setJoining(false);
     }
@@ -68,17 +68,17 @@ export function JoinPage() {
       <Centered>
         <div className="flex max-w-xs flex-col items-center gap-4 text-center">
           <Icon name="error" size={40} className="text-error" />
-          {info === "invalid" ? de.join.invalid : de.errors.network}
+          {info === "invalid" ? t.join.invalid : t.errors.network}
           {info === "error" ? (
             <Button variant="tonal" icon="refresh" onClick={() => {
                 setInfo(null);
                 setAttempt((n) => n + 1);
               }}>
-              {de.common.retry}
+              {t.common.retry}
             </Button>
           ) : (
             <Button variant="tonal" icon="arrow_forward" onClick={() => void navigate("/", { replace: true })}>
-              {de.join.toApp}
+              {t.join.toApp}
             </Button>
           )}
         </div>
@@ -89,8 +89,8 @@ export function JoinPage() {
     <main className="mx-auto flex min-h-dvh max-w-sm flex-col items-center justify-center gap-6 p-6 text-center">
       <BrandMark size={88} />
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ ...motionScheme.slowSpatial, delay: 0.1 }}>
-        <h1 className="type-headline-medium type-emphasized">{de.join.title}</h1>
-        <p className="type-body-large mt-2 text-on-surface-variant">{de.join.invitedTo(info.freezerName)}</p>
+        <h1 className="type-headline-medium type-emphasized">{t.join.title}</h1>
+        <p className="type-body-large mt-2 text-on-surface-variant">{t.join.invitedTo(info.freezerName)}</p>
       </motion.div>
       <motion.div
         className="flex w-full flex-col gap-3"
@@ -100,12 +100,12 @@ export function JoinPage() {
       >
         {session ? (
           <Button size="m" icon="group" className="w-full" disabled={joining} onClick={() => void accept()}>
-            {de.join.accept}
+            {t.join.accept}
           </Button>
         ) : (
           <>
             <Button size="m" icon="passkey" className="w-full" onClick={() => void signInWithPocketId(`/join/${token}`)}>
-              {de.join.haveAccount}
+              {t.join.haveAccount}
             </Button>
             {info.signupUrl && (
               <>
@@ -116,9 +116,9 @@ export function JoinPage() {
                   className="state-layer type-title-medium flex h-14 items-center justify-center gap-2 rounded-full text-on-surface-variant ring-1 ring-outline-variant ring-inset"
                 >
                   <Icon name="person_add" />
-                  {de.join.createAccount}
+                  {t.join.createAccount}
                 </a>
-                <p className="type-body-small text-on-surface-variant">{de.join.createAccountHint}</p>
+                <p className="type-body-small text-on-surface-variant">{t.join.createAccountHint}</p>
               </>
             )}
           </>

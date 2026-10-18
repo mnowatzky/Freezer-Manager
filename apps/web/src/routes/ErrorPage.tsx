@@ -1,4 +1,4 @@
-import { de } from "@freezer/shared/i18n";
+import { t } from "../lib/i18n";
 import { useEffect } from "react";
 import { isRouteErrorResponse, useRouteError } from "react-router";
 import { Button, Icon } from "../components/m3";
@@ -18,15 +18,15 @@ export function ErrorPage() {
       <span className="flex size-20 items-center justify-center rounded-xl bg-error-container text-on-error-container">
         <Icon name={notFound ? "search" : "error"} size={40} />
       </span>
-      <h1 className="type-headline-small type-emphasized">{notFound ? de.errorPage.notFound : de.errorPage.title}</h1>
-      {!notFound && <p className="type-body-large max-w-xs text-on-surface-variant">{de.errorPage.hint}</p>}
+      <h1 className="type-headline-small type-emphasized">{notFound ? t.errorPage.notFound : t.errorPage.title}</h1>
+      {!notFound && <p className="type-body-large max-w-xs text-on-surface-variant">{t.errorPage.hint}</p>}
       <div className="flex gap-2">
         <Button variant="tonal" icon="arrow_back" onClick={() => location.assign("/")}>
-          {de.join.toApp}
+          {t.join.toApp}
         </Button>
         {!notFound && (
           <Button icon="refresh" onClick={() => location.reload()}>
-            {de.errorPage.reload}
+            {t.errorPage.reload}
           </Button>
         )}
       </div>

@@ -3,7 +3,7 @@ import { z } from "zod";
 import "./context";
 import type { ZeroContext } from "./context";
 import { MAX_DRAWERS, suggestionId, UNITS } from "./domain";
-import { de } from "./i18n/de";
+import { appError, LOCALES, messages } from "./i18n";
 import { zql } from "./zero-schema.gen";
 
 // Custom mutators run optimistically on the client and authoritatively on the
@@ -16,28 +16,28 @@ async function requireRole(tx: Tx, ctx: ZeroContext, freezerId: string, role?: "
   const member = await tx.run(
     zql.freezerMember.where("freezerId", freezerId).where("userId", ctx.userID).one(),
   );
-  if (!member) throw new Error(de.errors.notMember);
-  if (role === "owner" && member.role !== "owner") throw new Error(de.errors.notOwner);
+  if (!member) throw appError("notMember");
+  if (role === "owner" && member.role !== "owner") throw appError("notOwner");
   return member;
 }
 
 async function requireItem(tx: Tx, ctx: ZeroContext, itemId: string) {
   const item = await tx.run(zql.item.where("id", itemId).one());
-  if (!item) throw new Error(de.errors.notFound);
+  if (!item) throw appError("notFound");
   await requireRole(tx, ctx, item.freezerId);
   return item;
 }
 
 async function requireDrawerInFreezer(tx: Tx, drawerId: string, freezerId: string) {
   const drawer = await tx.run(zql.drawer.where("id", drawerId).one());
-  if (!drawer || drawer.freezerId !== freezerId) throw new Error(de.errors.notFound);
+  if (!drawer || drawer.freezerId !== freezerId) throw appError("notFound");
 }
 
 async function requireContainerFree(tx: Tx, freezerId: string, containerNumber: number, exceptItemId?: string) {
   const occupant = await tx.run(
     zql.item.where("freezerId", freezerId).where("containerNumber", containerNumber).one(),
   );
-  if (occupant && occupant.id !== exceptItemId) throw new Error(de.errors.containerInUse(containerNumber));
+  if (occupant && occupant.id !== exceptItemId) throw appError("containerInUse", containerNumber);
 }
 
 const id = z.string().min(1).max(64);
@@ -49,7 +49,8 @@ const containerNumber = z.number().int().positive().max(1_000_000).nullable();
 export const mutators = defineMutators({
   freezer: {
     create: defineMutator(
-      z.object({ id, name, drawerIds: z.array(id).min(1).max(MAX_DRAWERS) }),
+      // locale: language of the default drawer names (optional for clients from before it existed).
+      z.object({ id, name, drawerIds: z.array(id).min(1).max(MAX_DRAWERS), locale: z.enum(LOCALES).optional() }),
       async ({ tx, ctx, args }) => {
         const now = Date.now();
         await tx.mutate.freezer.insert({ id: args.id, name: args.name, ownerId: ctx.userID, createdAt: now });
@@ -60,7 +61,7 @@ export const mutators = defineMutators({
           joinedAt: now,
         });
         for (const [i, drawerId] of args.drawerIds.entries()) {
-          await tx.mutate.drawer.insert({ id: drawerId, freezerId: args.id, name: de.drawerName(i + 1), sortOrder: i });
+          await tx.mutate.drawer.insert({ id: drawerId, freezerId: args.id, name: messages[args.locale ?? "de"].drawerName(i + 1), sortOrder: i });
         }
       },
     ),
@@ -82,13 +83,13 @@ export const mutators = defineMutators({
   member: {
     leave: defineMutator(z.object({ freezerId: id }), async ({ tx, ctx, args }) => {
       const me = await requireRole(tx, ctx, args.freezerId);
-      if (me.role === "owner") throw new Error(de.errors.ownerCannotLeave);
+      if (me.role === "owner") throw appError("ownerCannotLeave");
       await tx.mutate.freezerMember.delete({ freezerId: args.freezerId, userId: ctx.userID });
     }),
 
     remove: defineMutator(z.object({ freezerId: id, userId: id }), async ({ tx, ctx, args }) => {
       await requireRole(tx, ctx, args.freezerId, "owner");
-      if (args.userId === ctx.userID) throw new Error(de.errors.ownerCannotLeave);
+      if (args.userId === ctx.userID) throw appError("ownerCannotLeave");
       await tx.mutate.freezerMember.delete({ freezerId: args.freezerId, userId: args.userId });
     }),
   },
@@ -98,7 +99,7 @@ export const mutators = defineMutators({
   invite: {
     revoke: defineMutator(z.object({ inviteId: id }), async ({ tx, ctx, args }) => {
       const inv = await tx.run(zql.invite.where("id", args.inviteId).one());
-      if (!inv) throw new Error(de.errors.notFound);
+      if (!inv) throw appError("notFound");
       await requireRole(tx, ctx, inv.freezerId, "owner");
       await tx.mutate.invite.update({ id: inv.id, revokedAt: Date.now() });
     }),
@@ -165,7 +166,7 @@ export const mutators = defineMutators({
     take: defineMutator(z.object({ id, amount: quantity }), async ({ tx, ctx, args }) => {
       const item = await requireItem(tx, ctx, args.id);
       const remaining = Math.round((item.quantity - args.amount) * 1000) / 1000;
-      if (remaining < 0) throw new Error(de.errors.invalidAmount);
+      if (remaining < 0) throw appError("invalidAmount");
       if (remaining === 0) await tx.mutate.item.delete({ id: item.id });
       else await tx.mutate.item.update({ id: item.id, quantity: remaining });
     }),

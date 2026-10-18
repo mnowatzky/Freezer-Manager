@@ -1,5 +1,5 @@
 import { todayAsDate, UNITS, type Unit } from "@freezer/shared/domain";
-import { de } from "@freezer/shared/i18n";
+import { t } from "../lib/i18n";
 import { AnimatePresence, motion, useIsPresent } from "motion/react";
 import { useMemo, useRef, useState } from "react";
 import { recentDrawer, rememberDrawer } from "../lib/active-freezer";
@@ -20,7 +20,7 @@ type FormProps = {
 /** "Einfrieren" (add) sheet. */
 export function ItemDialog({ open, onClose, ...props }: Omit<FormProps, "onDone"> & { open: boolean; onClose: () => void }) {
   return (
-    <Sheet open={open} title={de.freezer.freeze} onClose={onClose}>
+    <Sheet open={open} title={t.freezer.freeze} onClose={onClose}>
       <ItemForm {...props} onDone={onClose} />
     </Sheet>
   );
@@ -94,7 +94,7 @@ export function ItemForm({ freezer, item, containerNumber = null, onDone }: Form
         }}
       >
         <TextField
-          label={de.item.name}
+          label={t.item.name}
           value={name}
           autoFocus={!item}
           autoComplete="off"
@@ -137,8 +137,8 @@ export function ItemForm({ freezer, item, containerNumber = null, onDone }: Form
                     </button>
                     <button
                       type="button"
-                      aria-label={`${de.item.removeSuggestion}: ${s.name}`}
-                      title={de.item.removeSuggestion}
+                      aria-label={`${t.item.removeSuggestion}: ${s.name}`}
+                      title={t.item.removeSuggestion}
                       className="state-layer flex h-full cursor-pointer items-center pr-1.5 pl-0.5 text-on-surface-variant"
                       onMouseDown={(e) => e.preventDefault()}
                       onClick={() => void mutate(mutators.suggestion.delete({ id: s.id }))}
@@ -154,18 +154,18 @@ export function ItemForm({ freezer, item, containerNumber = null, onDone }: Form
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <TextField label={de.item.quantity} inputMode="decimal" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
-        <SelectField label={de.item.unit} value={unit} onChange={(e) => setUnit(e.target.value as Unit)}>
+        <TextField label={t.item.quantity} inputMode="decimal" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+        <SelectField label={t.item.unit} value={unit} onChange={(e) => setUnit(e.target.value as Unit)}>
           {UNITS.map((u) => (
             <option key={u} value={u}>
-              {de.units[u]}
+              {t.units[u]}
             </option>
           ))}
         </SelectField>
       </div>
 
       <div className="grid grid-cols-2 items-start gap-3">
-        <SelectField label={de.item.drawer} value={drawerId} onChange={(e) => setDrawerId(e.target.value)}>
+        <SelectField label={t.item.drawer} value={drawerId} onChange={(e) => setDrawerId(e.target.value)}>
           {freezer.drawers.map((d) => (
             <option key={d.id} value={d.id}>
               {d.name}
@@ -173,25 +173,25 @@ export function ItemForm({ freezer, item, containerNumber = null, onDone }: Form
           ))}
         </SelectField>
         <TextField
-          label={de.item.container}
+          label={t.item.container}
           inputMode="numeric"
           pattern="[0-9]*"
           value={container}
           leadingIcon="qr_code_2"
-          supporting={de.common.optional}
+          supporting={t.common.optional}
           onChange={(e) => setContainer(e.target.value.replace(/\D/g, ""))}
         />
       </div>
 
-      <TextField type="date" label={de.item.frozenAt} value={frozenAt} onChange={(e) => setFrozenAt(e.target.value)} />
-      <TextArea label={`${de.item.notes} (${de.common.optional})`} rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
+      <TextField type="date" label={t.item.frozenAt} value={frozenAt} onChange={(e) => setFrozenAt(e.target.value)} />
+      <TextArea label={`${t.item.notes} (${t.common.optional})`} rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
 
       <div className="flex justify-end gap-2 pt-2">
         <Button type="button" variant="text" onClick={onDone}>
-          {de.common.cancel}
+          {t.common.cancel}
         </Button>
         <Button type="submit" icon={item ? "check" : "ac_unit"} disabled={!valid || !canWrite}>
-          {item ? de.common.save : de.freezer.freeze}
+          {item ? t.common.save : t.freezer.freeze}
         </Button>
       </div>
     </form>

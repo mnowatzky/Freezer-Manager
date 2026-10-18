@@ -1,4 +1,4 @@
-import { de } from "@freezer/shared/i18n";
+import { t } from "../lib/i18n";
 import { queries } from "@freezer/shared/queries";
 import { useQuery } from "@rocicorp/zero/react";
 import { useEffect, useState } from "react";
@@ -45,8 +45,8 @@ export function ContainerPage() {
 
   if (data.freezers.length > 1 && !chosenFreezer) {
     return (
-      <Sheet open title={de.container.title(number)} onClose={close}>
-        <p className="type-body-medium mb-4 text-on-surface-variant">{de.container.chooseFreezer}</p>
+      <Sheet open title={t.container.title(number)} onClose={close}>
+        <p className="type-body-medium mb-4 text-on-surface-variant">{t.container.chooseFreezer}</p>
         <ListGroup>
           {data.freezers.map((f) => (
             <ListItem

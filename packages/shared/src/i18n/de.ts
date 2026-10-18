@@ -1,6 +1,6 @@
 import type { Unit } from "../domain";
 
-// All user-facing strings. Add `en.ts` with the same shape to support English.
+// All user-facing strings. en.ts has the same shape (typed as Messages), so missing keys fail typecheck.
 export const de = {
   appName: "Freezer Manager",
   common: {

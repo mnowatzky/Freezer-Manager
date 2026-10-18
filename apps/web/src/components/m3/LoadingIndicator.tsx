@@ -1,4 +1,5 @@
 import { motion, useReducedMotion } from "motion/react";
+import { t as messages } from "../../lib/i18n";
 
 /*
  * M3 Expressive loading indicator: a shape that continuously morphs and rotates
@@ -32,7 +33,7 @@ const SHAPES = [
 const KEYFRAMES = [...SHAPES, SHAPES[0]!];
 const TIMES = KEYFRAMES.map((_, i) => i / SHAPES.length);
 
-export function LoadingIndicator({ size = 48, label = "Lädt" }: { size?: number; label?: string }) {
+export function LoadingIndicator({ size = 48, label = messages.common.loading }: { size?: number; label?: string }) {
   const reduced = useReducedMotion();
   return (
     <div

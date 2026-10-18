@@ -1,8 +1,16 @@
 node_modules
 dist
+# Secrets: only the templates are committed
 .env
 .env.*
 !.env.example
+!.env.production.example
+*.pem
+*.key
+*.p12
+# Database dumps/backups
+*.dump
+*.sql.gz
 *.log
 .DS_Store
 apps/web/dev-dist

@@ -1,4 +1,4 @@
-import { de } from "@freezer/shared/i18n";
+import { t } from "../lib/i18n";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { Navigate, useSearchParams } from "react-router";
@@ -18,8 +18,8 @@ export function LoginPage() {
     <main className="flex min-h-dvh flex-col items-center justify-center gap-6 p-6 text-center">
       <BrandMark />
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ ...motionScheme.slowSpatial, delay: 0.1 }}>
-        <h1 className="type-display-small type-emphasized">{de.appName}</h1>
-        <p className="type-body-large mx-auto mt-2 max-w-xs text-on-surface-variant">{de.auth.intro}</p>
+        <h1 className="type-display-small type-emphasized">{t.appName}</h1>
+        <p className="type-body-large mx-auto mt-2 max-w-xs text-on-surface-variant">{t.auth.intro}</p>
       </motion.div>
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ ...motionScheme.slowSpatial, delay: 0.2 }}>
         <Button
@@ -31,7 +31,7 @@ export function LoginPage() {
             void signInWithPocketId(returnTo).finally(() => setBusy(false));
           }}
         >
-          {de.auth.signIn}
+          {t.auth.signIn}
         </Button>
       </motion.div>
       <Registration />
@@ -67,11 +67,11 @@ function Registration() {
         body: JSON.stringify({ code }),
       });
       if (res.ok) setSignupUrl(((await res.json()) as { signupUrl: string }).signupUrl);
-      else if (res.status === 403) setError(de.auth.invalidCode);
-      else if (res.status === 429) setError(de.auth.tooManyAttempts);
-      else setError(de.errors.generic);
+      else if (res.status === 403) setError(t.auth.invalidCode);
+      else if (res.status === 429) setError(t.auth.tooManyAttempts);
+      else setError(t.errors.generic);
     } catch {
-      setError(de.errors.network);
+      setError(t.errors.network);
     } finally {
       setBusy(false);
     }
@@ -85,7 +85,7 @@ function Registration() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ ...motionScheme.slowSpatial, delay: 0.3 }}
     >
-      <h2 className="type-title-medium">{de.auth.noAccount}</h2>
+      <h2 className="type-title-medium">{t.auth.noAccount}</h2>
       <AnimatePresence mode="wait" initial={false}>
         {signupUrl ? (
           <motion.div
@@ -95,15 +95,15 @@ function Registration() {
             animate={{ opacity: 1, scale: 1 }}
             transition={motionScheme.defaultSpatial}
           >
-            <p className="type-body-medium text-on-surface-variant">{de.auth.registerReady}</p>
+            <p className="type-body-medium text-on-surface-variant">{t.auth.registerReady}</p>
             <a
               href={signupUrl}
               className="state-layer type-label-large inline-flex h-10 items-center gap-2 rounded-full bg-primary px-4 text-on-primary"
             >
               <Icon name="person_add" size={20} />
-              {de.auth.continueToPocketId}
+              {t.auth.continueToPocketId}
             </a>
-            <p className="type-body-small text-on-surface-variant">{de.auth.registerNext}</p>
+            <p className="type-body-small text-on-surface-variant">{t.auth.registerNext}</p>
           </motion.div>
         ) : (
           <motion.form
@@ -113,9 +113,9 @@ function Registration() {
             exit={{ opacity: 0, scale: 0.96 }}
             transition={motionScheme.fastEffects}
           >
-            <p className="type-body-medium text-center text-on-surface-variant">{de.auth.registerIntro}</p>
+            <p className="type-body-medium text-center text-on-surface-variant">{t.auth.registerIntro}</p>
             <TextField
-              label={de.auth.registrationCode}
+              label={t.auth.registrationCode}
               value={code}
               autoComplete="off"
               autoCapitalize="none"
@@ -124,7 +124,7 @@ function Registration() {
               supporting={error ? <span role="alert" className="text-error">{error}</span> : undefined}
             />
             <Button type="submit" variant="tonal" icon="person_add" disabled={busy || !code.trim()}>
-              {de.auth.register}
+              {t.auth.register}
             </Button>
           </motion.form>
         )}

@@ -21,7 +21,7 @@ installGlobalErrorReporting();
 const router = createBrowserRouter([
   { path: "/login", element: <LoginPage />, errorElement: <ErrorPage /> },
   { path: "/join/:token", element: <JoinPage />, errorElement: <ErrorPage /> },
-  { path: "/etiketten", element: <LabelsPage />, errorElement: <ErrorPage /> },
+  { path: "/labels", element: <LabelsPage />, errorElement: <ErrorPage /> },
   {
     element: <AuthedLayout />,
     errorElement: <ErrorPage />,
@@ -29,7 +29,7 @@ const router = createBrowserRouter([
       { path: "/", element: <HomePage /> },
       { path: "/setup", element: <SetupPage /> },
       { path: "/c/:number", element: <ContainerPage /> },
-      { path: "/einstellungen", element: <SettingsPage /> },
+      { path: "/settings", element: <SettingsPage /> },
     ],
   },
 ]);

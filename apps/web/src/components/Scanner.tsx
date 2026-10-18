@@ -1,5 +1,5 @@
 import { parseContainerCode } from "@freezer/shared/domain";
-import { de } from "@freezer/shared/i18n";
+import { t } from "../lib/i18n";
 import { BarcodeDetector, prepareZXingModule } from "barcode-detector/ponyfill";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
@@ -15,7 +15,7 @@ prepareZXingModule({
 /** Camera QR scanner sheet with manual number entry as an equal alternative. */
 export function Scanner({ open, onResult, onClose }: { open: boolean; onResult: (n: number) => void; onClose: () => void }) {
   return (
-    <Sheet open={open} title={de.scanner.title} onClose={onClose}>
+    <Sheet open={open} title={t.scanner.title} onClose={onClose}>
       <ScannerBody onResult={onResult} />
     </Sheet>
   );
@@ -64,7 +64,7 @@ function ScannerBody({ onResult }: { onResult: (n: number) => void }) {
     return () => {
       cancelled = true;
       cancelAnimationFrame(raf);
-      stream?.getTracks().forEach((t) => t.stop());
+      stream?.getTracks().forEach((track) => track.stop());
     };
   }, [onResult]);
 
@@ -80,7 +80,7 @@ function ScannerBody({ onResult }: { onResult: (n: number) => void }) {
       {cameraError ? (
         <div className="type-body-medium mb-4 flex items-center gap-3 rounded-l bg-surface-container px-4 py-3 text-on-surface-variant">
           <Icon name="error" />
-          {de.scanner.noCamera}
+          {t.scanner.noCamera}
         </div>
       ) : (
         <div className="relative mb-4 aspect-square w-full overflow-hidden rounded-xl bg-inverse-surface">
@@ -103,21 +103,21 @@ function ScannerBody({ onResult }: { onResult: (n: number) => void }) {
             exit={{ opacity: 0, height: 0 }}
             transition={motionScheme.defaultSpatial}
           >
-            {de.scanner.invalid}
+            {t.scanner.invalid}
           </motion.p>
         )}
       </AnimatePresence>
       <form onSubmit={submitManual} className="flex items-start gap-2">
         <TextField
           className="flex-1"
-          label={de.scanner.manual}
+          label={t.scanner.manual}
           leadingIcon="keyboard"
           inputMode="numeric"
           pattern="[0-9]*"
           value={manual}
           onChange={(e) => setManual(e.target.value)}
         />
-        <Button type="submit" size="m" icon="arrow_forward" aria-label={de.scanner.open} className="px-4" />
+        <Button type="submit" size="m" icon="arrow_forward" aria-label={t.scanner.open} className="px-4" />
       </form>
     </>
   );
