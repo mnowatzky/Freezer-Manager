@@ -7,8 +7,9 @@
   font-style: normal;
   font-weight: 100 700;
   font-display: block;
-  /* Subset to the icons in icon-names.txt (see README → Design). */
-  src: url(/fonts/material-symbols-rounded.woff2) format("woff2");
+  /* Subset to the icons in icon-names.txt (see README → Design). Imported so
+     Vite gives it a content-hashed URL: a fixed URL kept serving the old subset from caches. */
+  src: url(./fonts/material-symbols-rounded.woff2) format("woff2");
 }
 
 :root {

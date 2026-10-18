@@ -41,7 +41,7 @@ export default defineConfig({
         navigateFallback: "/index.html",
         navigateFallbackDenylist: [/^\/api\//],
         // Fonts: only the Latin subsets of Google Sans Flex plus the icon font (other scripts load on demand).
-        globPatterns: ["**/*.{js,css,html,svg,png,ico,wasm}", "assets/google-sans-flex-latin*.woff2", "fonts/*.woff2"],
+        globPatterns: ["**/*.{js,css,html,svg,png,ico,wasm}", "assets/google-sans-flex-latin*.woff2", "assets/material-symbols-rounded*.woff2"],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
       },
       // Serve the manifest + a dev service worker in `pnpm dev` too, so installing from the dev server

@@ -16,5 +16,5 @@ const css = await (await fetch(url, { headers: { "User-Agent": ua } })).text();
 const fontUrl = /url\((https:[^)]+)\)/.exec(css)?.[1];
 if (!fontUrl || !css.includes("font-weight: 100 700")) throw new Error(`Unexpected response:\n${css}`);
 const font = Buffer.from(await (await fetch(fontUrl)).arrayBuffer());
-writeFileSync(new URL("../public/fonts/material-symbols-rounded.woff2", import.meta.url), font);
+writeFileSync(new URL("../src/theme/fonts/material-symbols-rounded.woff2", import.meta.url), font);
 console.log(`Wrote ${names.length} icons (${(font.length / 1024).toFixed(1)} KiB)`);

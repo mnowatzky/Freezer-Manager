@@ -146,7 +146,7 @@ The UI follows [Material 3 Expressive](https://m3.material.io/). Material Web (`
   - Lists, sheets, FABs and the app bar animate on these springs.
   - The OS "reduce motion" setting is respected.
 - **Icons:**
-  - The icons are Material Symbols Rounded as a self-hosted variable-font subset (`public/fonts/`), which works offline and animates the fill on selection.
+  - The icons are Material Symbols Rounded as a self-hosted variable-font subset (`src/theme/fonts/`, served under a content-hashed URL), which works offline and animates the fill on selection.
   - To add an icon, put its name into `src/theme/icon-names.txt` and run `pnpm --filter @freezer/web fetch-icons`.
 
 - **App icons:** `pnpm --filter @freezer/web generate-icons` renders `apps/web/assets/icon*.svg` (the 108-unit adaptive-icon artwork) into four kinds of icon:
