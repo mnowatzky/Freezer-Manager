@@ -11,7 +11,7 @@ name: freezer
 
 x-api-build: &api-build
   build: { context: ., dockerfile: apps/api/Dockerfile }
-  image: freezer-api:${IMAGE_TAG:-latest}
+  image: ${IMAGE_REPO:-maltenow/freezer-manager}:api-${IMAGE_TAG:-latest}
 
 services:
   postgres:
@@ -103,7 +103,7 @@ services:
       args:
         VITE_ZERO_CACHE_URL: https://${SYNC_HOST:-sync.freezer.malte-nowatzky.de}
         VITE_PUBLIC_URL: https://${FREEZER_HOST:-freezer.malte-nowatzky.de}
-    image: freezer-web:${IMAGE_TAG:-latest}
+    image: ${IMAGE_REPO:-maltenow/freezer-manager}:web-${IMAGE_TAG:-latest}
     environment:
       # Allowed in the Content-Security-Policy (connect-src, https + wss).
       ZERO_ORIGIN: https://${SYNC_HOST:-sync.freezer.malte-nowatzky.de}

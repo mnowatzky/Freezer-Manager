@@ -200,7 +200,9 @@ The UI follows [Material 3 Expressive](https://m3.material.io/). Material Web (`
    docker compose ps   # all services healthy, migrate "Exited (0)"
    ```
 
-**Deploying an update:** `git pull && docker compose up -d --build`. `migrate` runs again first; migrations that already ran are skipped.
+**Images:** built locally (for the VPS's CPU architecture) and pushed to Docker Hub as `${IMAGE_REPO}:api-<tag>` and `${IMAGE_REPO}:web-<tag>` (default repo `maltenow/freezer-manager`). The VPS only needs `docker-compose.yml` and `.env`; it pulls the images.
+
+**Deploying an update:** push new images with a new tag, set `IMAGE_TAG` in the VPS `.env`, then `docker compose pull && docker compose up -d --no-build`. `migrate` runs again first; migrations that already ran are skipped. **Rollback:** set the previous `IMAGE_TAG` and run the same commands. Schema migrations are not reverted, so only roll back across releases without migrations, or restore the database backup.
 
 Notes:
 - The session cookie is set for `freezer.malte-nowatzky.de` (`COOKIE_DOMAIN`), so the browser also sends it to `sync.freezer.malte-nowatzky.de`, and zero-cache forwards it to the API.
