@@ -9,7 +9,7 @@ export function ageLabel(frozenAt: number) {
 
 export function quantityLabel(quantity: number, unit: string) {
   const n = quantity.toLocaleString(formatLocale, { maximumFractionDigits: 3 });
-  return `${n} ${t.units[unit as Unit] ?? unit}`;
+  return `${n} ${t.units[unit as Unit]?.(quantity) ?? unit}`;
 }
 
 /** Zero `date` (epoch ms, UTC midnight) <-> <input type="date"> value. */

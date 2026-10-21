@@ -158,7 +158,7 @@ export function ItemForm({ freezer, item, containerNumber = null, onDone }: Form
         <SelectField label={t.item.unit} value={unit} onChange={(e) => setUnit(e.target.value as Unit)}>
           {UNITS.map((u) => (
             <option key={u} value={u}>
-              {t.units[u]}
+              {t.units[u](qty)}
             </option>
           ))}
         </SelectField>

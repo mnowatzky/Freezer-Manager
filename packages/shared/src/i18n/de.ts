@@ -1,5 +1,16 @@
 import type { Unit } from "../domain";
 
+// Label for a unit after a quantity (plural unless it is exactly 1).
+const units: Record<Unit, (n: number) => string> = {
+  piece: () => "Stück",
+  portion: (n: number) => (n === 1 ? "Portion" : "Portionen"),
+  bag: () => "Beutel",
+  g: () => "g",
+  kg: () => "kg",
+  ml: () => "ml",
+  l: () => "l",
+};
+
 // All user-facing strings. en.ts has the same shape (typed as Messages), so missing keys fail typecheck.
 export const de = {
   appName: "Freezer Manager",
@@ -74,15 +85,7 @@ export const de = {
     age: (days: number) =>
       days < 1 ? "heute" : days < 31 ? `vor ${days} T.` : days < 365 ? `vor ${Math.floor(days / 30)} Mon.` : `vor ${Math.floor(days / 365)} J.`,
   },
-  units: {
-    piece: "Stück",
-    portion: "Portion",
-    bag: "Beutel",
-    g: "g",
-    kg: "kg",
-    ml: "ml",
-    l: "l",
-  } satisfies Record<Unit, string>,
+  units,
   container: {
     title: (n: number) => `Behälter ${n}`,
     free: "Dieser Behälter ist leer.",
