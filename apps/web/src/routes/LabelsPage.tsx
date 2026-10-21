@@ -21,11 +21,15 @@ export function LabelsPage() {
 
   return (
     <div className="min-h-dvh p-4 print:bg-white print:p-0">
-      <div className="no-print mx-auto mb-6 flex max-w-xl flex-wrap items-center gap-3">
+      <div className="no-print mx-auto mb-6 flex max-w-xl items-center gap-3">
         <IconButton icon="arrow_back" label={t.common.back} onClick={() => void navigate("/settings")} />
         <h1 className="type-title-large mr-auto">{t.labels.title}</h1>
+        <Button icon="print" onClick={() => window.print()}>
+          {t.labels.print}
+        </Button>
+      </div>
+      <div className="no-print mx-auto mb-6 grid max-w-xl grid-cols-3 gap-3">
         <TextField
-          className="w-24"
           label={t.labels.from}
           type="number"
           min={1}
@@ -33,7 +37,6 @@ export function LabelsPage() {
           onChange={(e) => update({ from: e.target.value })}
         />
         <TextField
-          className="w-24"
           label={t.labels.to}
           type="number"
           min={from}
@@ -41,7 +44,6 @@ export function LabelsPage() {
           onChange={(e) => update({ to: e.target.value })}
         />
         <TextField
-          className="w-24"
           label={t.labels.size}
           type="number"
           min={2}
@@ -50,9 +52,6 @@ export function LabelsPage() {
           value={size}
           onChange={(e) => update({ size: e.target.value })}
         />
-        <Button icon="print" onClick={() => window.print()}>
-          {t.labels.print}
-        </Button>
       </div>
       {/* Printed, columns follow from the label size: as many as fit the page width. */}
       <div
