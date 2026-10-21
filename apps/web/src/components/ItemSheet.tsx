@@ -2,6 +2,7 @@ import { t } from "../lib/i18n";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { ageLabel, formatDate, quantityLabel } from "../lib/format";
+import { useHoldRepeat } from "../lib/hold-repeat";
 import type { FreezerDetail, ItemRow } from "../lib/freezer-data";
 import { mutators, useCanWrite, useMutate } from "../lib/zero";
 import { motionScheme } from "../theme/motion";
@@ -91,6 +92,8 @@ function Take({ item, onDone, onBack }: { item: ItemRow; onDone: () => void; onB
   const [amount, setAmount] = useState(Math.min(step, item.quantity));
   const clamp = (n: number) => Math.min(item.quantity, Math.max(step, Math.round(n * 1000) / 1000));
   const remaining = Math.max(0, Math.round((item.quantity - amount) * 1000) / 1000);
+  const less = useHoldRepeat(() => setAmount((a) => clamp(a - step)));
+  const more = useHoldRepeat(() => setAmount((a) => clamp(a + step)));
 
   const take = async (value: number) => {
     if (await mutate(mutators.item.take({ id: item.id, amount: value }))) onDone();
@@ -102,7 +105,7 @@ function Take({ item, onDone, onBack }: { item: ItemRow; onDone: () => void; onB
         {item.name}: {quantityLabel(item.quantity, item.unit)}
       </p>
       <div className="mb-2 flex items-center justify-center gap-6">
-        <IconButton icon="remove" label={t.common.less} variant="tonal" size={56} onClick={() => setAmount((a) => clamp(a - step))} />
+        <IconButton icon="remove" label={t.common.less} variant="tonal" size={56} {...less} />
         <div className="min-w-32 text-center">
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
@@ -117,7 +120,7 @@ function Take({ item, onDone, onBack }: { item: ItemRow; onDone: () => void; onB
             </motion.div>
           </AnimatePresence>
         </div>
-        <IconButton icon="add" label={t.common.more} variant="tonal" size={56} onClick={() => setAmount((a) => clamp(a + step))} />
+        <IconButton icon="add" label={t.common.more} variant="tonal" size={56} {...more} />
       </div>
       <p className="type-body-small mb-6 text-center text-on-surface-variant">
         → {quantityLabel(remaining, item.unit)}
