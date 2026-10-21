@@ -34,6 +34,17 @@ const router = createBrowserRouter([
   },
 ]);
 
+// Installed app launched by a link (e.g. a scanned container QR code): with launch_handler
+// "focus-existing" the running window is focused, not navigated, so route to the link here.
+window.launchQueue?.setConsumer(({ targetURL }) => {
+  if (!targetURL) return;
+  const url = new URL(targetURL);
+  if (url.origin !== location.origin) return;
+  const path = url.pathname + url.search + url.hash;
+  // A fresh launch already loaded the target URL.
+  if (path !== location.pathname + location.search + location.hash) void router.navigate(path);
+});
+
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     {/* Honors the OS "reduce motion" setting for all springs. */}
