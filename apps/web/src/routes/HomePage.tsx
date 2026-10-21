@@ -1,6 +1,6 @@
 import { locale, t } from "../lib/i18n";
 import { AnimatePresence, motion, useMotionValueEvent, useScroll } from "motion/react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Navigate, useNavigate } from "react-router";
 import { FullScreenLoading } from "../components/AuthedLayout";
 import { ItemDialog } from "../components/ItemDialog";
@@ -32,10 +32,21 @@ function FreezerView({ data, freezer }: { data: ReturnType<typeof useFreezerData
 
   // Extended FAB collapses while scrolling down, expands when scrolling up (M3 behavior).
   const { scrollY } = useScroll();
+  // Toggle only after a sustained move from the last turning point, so slow scrolling,
+  // momentum and iOS overscroll bounce don't make it flicker.
   const [fabExtended, setFabExtended] = useState(true);
-  useMotionValueEvent(scrollY, "change", (y) => {
-    const prev = scrollY.getPrevious() ?? 0;
-    if (Math.abs(y - prev) > 4) setFabExtended(y < prev || y < 40);
+  const fabAnchor = useRef({ y: 0, extended: true });
+  useMotionValueEvent(scrollY, "change", (raw) => {
+    const max = document.documentElement.scrollHeight - window.innerHeight;
+    const y = Math.min(Math.max(raw, 0), Math.max(max, 0));
+    const anchor = fabAnchor.current;
+    let extended = anchor.extended;
+    if (y < 40) extended = true;
+    else if (extended ? y - anchor.y > 24 : anchor.y - y > 24) extended = !extended;
+    // The anchor follows the furthest point in the current direction.
+    if (extended !== anchor.extended || (extended ? y < anchor.y : y > anchor.y)) anchor.y = y;
+    anchor.extended = extended;
+    setFabExtended(extended);
   });
 
   const items = useMemo(() => {

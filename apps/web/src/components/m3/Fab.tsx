@@ -1,4 +1,4 @@
-import { AnimatePresence, motion, type HTMLMotionProps } from "motion/react";
+import { motion, type HTMLMotionProps } from "motion/react";
 import { motionScheme } from "../../theme/motion";
 import { Icon } from "./Icon";
 
@@ -22,35 +22,30 @@ const colors = {
 export function Fab({ icon, label, extended = false, variant = "primary", size = "m", className = "", disabled, ...props }: FabProps) {
   const height = size === "m" ? 56 : 40;
   const radius = size === "m" ? 16 : 12;
+  const iconSize = size === "m" ? 24 : 20;
+  // Constant padding keeps the collapsed FAB square; only the label's width animates,
+  // so the button grows and shrinks with it instead of via a scaling layout animation.
   return (
     <motion.button
       type="button"
       aria-label={label}
       title={label}
       disabled={disabled}
-      layout
-      className={`state-layer flex cursor-pointer items-center justify-center overflow-hidden shadow-lg shadow-black/15 disabled:cursor-not-allowed disabled:opacity-50 ${colors[variant]} ${className}`}
-      style={{ height, minWidth: height, borderRadius: radius, paddingInline: extended ? 16 : 0 }}
+      className={`state-layer flex cursor-pointer items-center overflow-hidden shadow-lg shadow-black/15 disabled:cursor-not-allowed disabled:opacity-50 ${colors[variant]} ${className}`}
+      style={{ height, borderRadius: radius, paddingInline: (height - iconSize) / 2 }}
       whileTap={disabled ? undefined : { borderRadius: height / 2, scale: 0.96 }}
       transition={motionScheme.defaultSpatial}
       {...props}
     >
-      <motion.span layout="position" className="flex items-center gap-3">
-        <Icon name={icon} size={size === "m" ? 24 : 20} />
-        <AnimatePresence initial={false}>
-          {extended && (
-            <motion.span
-              key="label"
-              className="type-label-large whitespace-nowrap"
-              initial={{ opacity: 0, width: 0 }}
-              animate={{ opacity: 1, width: "auto" }}
-              exit={{ opacity: 0, width: 0 }}
-              transition={motionScheme.defaultEffects}
-            >
-              {label}
-            </motion.span>
-          )}
-        </AnimatePresence>
+      <Icon name={icon} size={iconSize} />
+      <motion.span
+        aria-hidden
+        className="type-label-large overflow-hidden whitespace-nowrap"
+        initial={false}
+        animate={{ width: extended ? "auto" : 0, opacity: extended ? 1 : 0 }}
+        transition={{ width: motionScheme.defaultSpatial, opacity: motionScheme.defaultEffects }}
+      >
+        <span className="block pl-3">{label}</span>
       </motion.span>
     </motion.button>
   );
