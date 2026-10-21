@@ -1,3 +1,4 @@
+import { buildInfo } from "@freezer/shared/build-info";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
@@ -5,6 +6,7 @@ import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
   envDir: "../..",
+  define: { __APP_BUILD__: JSON.stringify(buildInfo()) },
   plugins: [
     react(),
     tailwindcss(),

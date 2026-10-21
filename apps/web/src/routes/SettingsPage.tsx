@@ -149,8 +149,32 @@ function Settings({ freezer, userId }: { freezer: FreezerDetail; userId: string 
             </Button>
           )}
         </section>
+
+        <VersionInfo />
       </div>
     </div>
+  );
+}
+
+type Build = typeof __APP_BUILD__;
+const formatBuild = (b: Build) => `${b.version} (${b.commit})`;
+
+/** App and server version; a mismatch usually means the service worker still serves an old bundle. */
+function VersionInfo() {
+  const [server, setServer] = useState<Build | null>();
+  useEffect(() => {
+    fetch("/api/health")
+      .then((res) => (res.ok ? (res.json() as Promise<Build>) : null))
+      .then(setServer, () => setServer(null));
+  }, []);
+  const mismatch = server && (server.version !== __APP_BUILD__.version || server.commit !== __APP_BUILD__.commit);
+
+  return (
+    <footer className="type-body-small flex flex-col items-center gap-1 text-center text-on-surface-variant">
+      <span>{t.settings.appVersion(formatBuild(__APP_BUILD__))}</span>
+      <span>{t.settings.serverVersion(server ? formatBuild(server) : server === null ? "–" : "…")}</span>
+      {mismatch && <span className="text-error">{t.settings.versionMismatch}</span>}
+    </footer>
   );
 }
 

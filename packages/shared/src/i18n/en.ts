@@ -110,6 +110,9 @@ export const en: Messages = {
     deleteFreezer: "Delete freezer",
     confirmDelete: "Really delete? All items will be lost.",
     labels: "Print QR labels",
+    appVersion: (v: string) => `App ${v}`,
+    serverVersion: (v: string) => `Server ${v}`,
+    versionMismatch: "App and server versions differ. Close and reopen the app to update it.",
   },
   join: {
     title: "Invite",

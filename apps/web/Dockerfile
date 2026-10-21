@@ -2,7 +2,9 @@
 # Build context: repository root (see docker-compose.yml).
 
 # --- build: static PWA ---------------------------------------------------------------------
-FROM node:26-alpine AS build
+# The output is platform-independent, so build natively and copy it into each platform's
+# runtime image (no slow emulation for arm64).
+FROM --platform=$BUILDPLATFORM node:26-alpine AS build
 RUN npm install -g pnpm@12.11.2
 WORKDIR /repo
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json tsconfig.base.json ./
@@ -11,6 +13,8 @@ COPY apps/web/package.json apps/web/
 RUN pnpm install --frozen-lockfile --filter @freezer/web...
 COPY packages/shared packages/shared
 COPY apps/web apps/web
+# Set by the release workflow; without them the version is "<package.json version>-dev".
+ARG APP_VERSION APP_COMMIT
 # No domains are baked in: nginx injects ZERO_ORIGIN into index.html at runtime, and QR stickers
 # use the page's own origin.
 RUN pnpm --filter @freezer/web build

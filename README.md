@@ -85,7 +85,7 @@ openssl rand -hex 16      # ZERO_ADMIN_PASSWORD
 
 Settings worth knowing:
 
-- **`IMAGE_TAG`:** pin it to a version (a commit SHA from the [Docker Hub tags](https://hub.docker.com/r/maltenow/freezer-manager/tags)) instead of `latest`, so updates and rollbacks are deliberate.
+- **`IMAGE_TAG`:** pin it to a release version (e.g. `0.1.0`, see the [releases](https://github.com/mnowatzky/Freezer-Manager/releases)) instead of `latest`, so updates and rollbacks are deliberate. While the version is `0.x`, a minor bump (`0.1` → `0.2`) may need changes to `.env` or `docker-compose.yml`; check the release notes. Settings shows which version is running.
 - **`PROXY_NETWORK`:** the external Docker network your reverse proxy is on (default `npm_proxy`). If it doesn't exist yet, create it and attach the proxy:
   ```bash
   docker network create npm_proxy
@@ -333,12 +333,25 @@ Passkeys are tied to the domain, so register a new one at the ts.net address. If
 - **`web`:** the static PWA on unprivileged nginx (port 8080), with gzip and caching rules. Its security headers include a strict Content-Security-Policy.
 - Both images have a `HEALTHCHECK`.
 
-To build and push both images for both architectures:
+- The version (`APP_VERSION`, `APP_COMMIT` build args) is baked into both images and shown in Settings. Builds without them show `<package.json version>-dev`.
+
+To build and push both images for both architectures by hand:
 
 ```bash
 docker buildx build --platform linux/amd64,linux/arm64 -f apps/api/Dockerfile -t <repo>:api-<tag> --push .
 docker buildx build --platform linux/amd64,linux/arm64 -f apps/web/Dockerfile -t <repo>:web-<tag> --push .
 ```
+
+### Releasing
+
+Versions follow [SemVer](https://semver.org); while they are `0.x`, a minor bump may contain breaking changes. GitHub Actions run lint, typecheck, tests and build on every push to `main` and on pull requests ([`ci.yml`](.github/workflows/ci.yml)). To release, bump the version and push the tag:
+
+```bash
+npm version 0.2.0 -m "Release %s"   # updates package.json, commits and tags v0.2.0
+git push --follow-tags
+```
+
+[`release.yml`](.github/workflows/release.yml) then runs the checks again, pushes `api-0.2.0`, `web-0.2.0`, `api-latest` and `web-latest` to Docker Hub (`linux/amd64` and `linux/arm64`) and creates a GitHub release with generated notes. It needs the repository secrets `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` (a Docker Hub access token with read & write scope).
 
 ## QR stickers and scanning
 

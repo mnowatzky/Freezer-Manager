@@ -1,4 +1,5 @@
 import "@freezer/shared/context";
+import { buildInfo } from "@freezer/shared/build-info";
 import { INVITE_TTL_MS } from "@freezer/shared/domain";
 import { mutators } from "@freezer/shared/mutators";
 import { queries } from "@freezer/shared/queries";
@@ -34,7 +35,9 @@ async function sessionUserId(c: Context): Promise<string | null> {
   return session?.user.id ?? null;
 }
 
-app.get("/api/health", (c) => c.json({ ok: true }));
+// Also reports the version, so the web app can show it and detect a stale bundle.
+const build = buildInfo();
+app.get("/api/health", (c) => c.json({ ok: true, ...build }));
 
 // CSRF: our own cookie-authenticated endpoints only accept requests from the web app's origin.
 // Better Auth checks origins for /api/auth itself; /api/zero is called server-to-server by

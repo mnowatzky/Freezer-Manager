@@ -114,6 +114,9 @@ export const de = {
     deleteFreezer: "Gefrierschrank löschen",
     confirmDelete: "Wirklich löschen? Alle Einträge gehen verloren.",
     labels: "QR-Etiketten drucken",
+    appVersion: (v: string) => `App ${v}`,
+    serverVersion: (v: string) => `Server ${v}`,
+    versionMismatch: "App und Server haben unterschiedliche Versionen. Schließe die App und öffne sie neu, um sie zu aktualisieren.",
   },
   join: {
     title: "Einladung",

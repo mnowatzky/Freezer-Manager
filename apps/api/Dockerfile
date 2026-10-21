@@ -2,7 +2,9 @@
 # Build context: repository root (see docker-compose.yml).
 
 # --- build: bundle the API (incl. all dependencies) into dist/*.mjs -------------------------
-FROM node:26-alpine AS build
+# The output is platform-independent, so build natively and copy it into each platform's
+# runtime image (no slow emulation for arm64).
+FROM --platform=$BUILDPLATFORM node:26-alpine AS build
 RUN npm install -g pnpm@12.11.2
 WORKDIR /repo
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json tsconfig.base.json ./
@@ -11,6 +13,8 @@ COPY apps/api/package.json apps/api/
 RUN pnpm install --frozen-lockfile --filter @freezer/api...
 COPY packages/shared packages/shared
 COPY apps/api apps/api
+# Set by the release workflow; without them the version is "<package.json version>-dev".
+ARG APP_VERSION APP_COMMIT
 RUN pnpm --filter @freezer/api build
 
 # --- runtime: just Node, the bundle and the migration SQL; runs as the unprivileged `node` user

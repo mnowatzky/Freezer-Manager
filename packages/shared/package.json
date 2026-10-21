@@ -9,7 +9,8 @@
     "./domain": "./src/domain.ts",
     "./queries": "./src/queries.ts",
     "./mutators": "./src/mutators.ts",
-    "./i18n": "./src/i18n/index.ts"
+    "./i18n": "./src/i18n/index.ts",
+    "./build-info": "./build-info.ts"
   },
   "scripts": {
     "zero:generate": "drizzle-zero generate -c drizzle-zero.config.ts -o src/zero-schema.gen.ts --suppress-defaults-warning --skip-declare",
