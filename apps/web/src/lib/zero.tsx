@@ -23,6 +23,9 @@ export function ZeroRoot({ userID, children }: { userID: string; children: React
       context={context}
       schema={schema}
       mutators={mutators}
+      // Disconnect as soon as the app is hidden. Otherwise reconnects fail while the phone is locked
+      // and Zero sits in its fixed 5s retry backoff after unlocking; this way it reconnects on visible.
+      hiddenTabDisconnectDelay={0}
     >
       <SessionWatch />
       {children}

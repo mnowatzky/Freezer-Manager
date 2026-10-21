@@ -48,7 +48,9 @@ function AnimatedOutlet() {
 
 function OfflineBanner() {
   const state = useConnectionState();
-  const offline = state.name !== "connected" && state.name !== "connecting";
+  // A hidden app disconnects on purpose; Zero switches to connecting as soon as it's visible again.
+  const hidden = state.name === "disconnected" && document.visibilityState === "hidden";
+  const offline = state.name !== "connected" && state.name !== "connecting" && !hidden;
   return (
     <AnimatePresence>
       {offline && (
