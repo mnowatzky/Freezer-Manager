@@ -132,6 +132,7 @@ export const de = {
     title: "QR-Etiketten",
     from: "Von",
     to: "Bis",
+    size: "Größe (cm)",
     print: "Drucken",
   },
   errorPage: {

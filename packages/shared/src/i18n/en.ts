@@ -128,6 +128,7 @@ export const en: Messages = {
     title: "QR labels",
     from: "From",
     to: "To",
+    size: "Size (cm)",
     print: "Print",
   },
   errorPage: {
