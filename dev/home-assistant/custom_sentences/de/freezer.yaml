@@ -1,0 +1,20 @@
+language: "de"
+intents:
+  FreezerAdd:
+    data:
+      - sentences:
+          - "ich habe {quantity} {food} in Schublade {drawer} eingefroren"
+          - "ich habe {quantity} {food} eingefroren"
+  FreezerTake:
+    data:
+      - sentences:
+          - "ich habe {quantity} {food} [aus dem Gefrierschrank] genommen"
+lists:
+  quantity:
+    range: { from: 1, to: 20 }
+  food:
+    wildcard: true
+  # A number, not a wildcard: wildcards match greedily, and with two of them "Lasagne in drawer 3"
+  # ends up as the food's name.
+  drawer:
+    range: { from: 1, to: 20 }

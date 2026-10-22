@@ -1,6 +1,13 @@
 @import "tailwindcss";
 @import "./theme/tokens.css";
 
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 @media print {
   .no-print {
     display: none !important;

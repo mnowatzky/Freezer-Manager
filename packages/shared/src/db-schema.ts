@@ -138,6 +138,10 @@ export const item = pgTable(
     unit: text("unit").notNull(),
     frozenAt: date("frozen_at", { mode: "string" }).notNull(),
     notes: text("notes"),
+    // One of CATEGORIES (domain.ts); null = uncategorized.
+    category: text("category"),
+    // Eat by this date. Filled in from the food's storage time when freezing; null = no warning.
+    bestBefore: date("best_before", { mode: "string" }),
     createdBy: text("created_by")
       .notNull()
       .references(() => user.id),
@@ -146,6 +150,7 @@ export const item = pgTable(
   (t) => [
     unique("item_freezer_container_uq").on(t.freezerId, t.containerNumber),
     index("item_freezer_idx").on(t.freezerId),
+    index("item_best_before_idx").on(t.bestBefore),
   ],
 );
 
@@ -159,9 +164,31 @@ export const foodSuggestion = pgTable(
       .references(() => freezer.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     lastUnit: text("last_unit").notNull(),
+    lastCategory: text("last_category"),
+    // Storage time someone chose by hand for this food; overrides the category's default.
+    shelfLifeMonths: integer("shelf_life_months"),
     useCount: integer("use_count").notNull(),
   },
   (t) => [index("food_suggestion_freezer_idx").on(t.freezerId)],
+);
+
+// The freezer's own barcode memory: what a scanned product was saved as (name, quantity, unit, category),
+// so the next scan of it needs no Open Food Facts lookup and keeps the household's corrections.
+// id = `${freezerId}:${code}`.
+export const barcode = pgTable(
+  "barcode",
+  {
+    id: text("id").primaryKey(),
+    freezerId: text("freezer_id")
+      .notNull()
+      .references(() => freezer.id, { onDelete: "cascade" }),
+    code: text("code").notNull(),
+    name: text("name").notNull(),
+    quantity: doublePrecision("quantity").notNull(),
+    unit: text("unit").notNull(),
+    category: text("category"),
+  },
+  (t) => [index("barcode_freezer_idx").on(t.freezerId)],
 );
 
 export const invite = pgTable(
@@ -184,12 +211,74 @@ export const invite = pgTable(
   (t) => [index("invite_freezer_idx").on(t.freezerId)],
 );
 
+// Personal API tokens for the public API (/api/v1, e.g. Home Assistant). Only a SHA-256 hash of the
+// token is stored; it is shown once when created. Synced to its owner without token_hash.
+export const apiToken = pgTable(
+  "api_token",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    tokenHash: text("token_hash").notNull().unique(),
+    // First characters of the token, to recognize it in the list.
+    prefix: text("prefix").notNull(),
+    scope: text("scope").$type<"read" | "write">().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (t) => [index("api_token_user_idx").on(t.userId)],
+);
+
+// ---------------------------------------------------------------------------
+// Push notifications (server-only: not in the zero_app publication, not in the Zero schema)
+// ---------------------------------------------------------------------------
+
+// One Web Push subscription per device (endpoint). `locale` is the app language on that device.
+export const pushSubscription = pgTable(
+  "push_subscription",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    endpoint: text("endpoint").notNull().unique(),
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    locale: text("locale").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    lastSuccessAt: timestamp("last_success_at", { withTimezone: true }),
+  },
+  (t) => [index("push_subscription_user_idx").on(t.userId)],
+);
+
+// Which best-before date each kind of notification ("soon": a week before, "due": on the day) was
+// already sent for. A changed date no longer matches, so the next run notifies again.
+export const expiryNotice = pgTable(
+  "expiry_notice",
+  {
+    itemId: text("item_id")
+      .notNull()
+      .references(() => item.id, { onDelete: "cascade" }),
+    kind: text("kind").$type<"soon" | "due">().notNull(),
+    bestBefore: date("best_before", { mode: "string" }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.itemId, t.kind] })],
+);
+
 // ---------------------------------------------------------------------------
 // Relations (drizzle-zero turns these into Zero relationships)
 // ---------------------------------------------------------------------------
 
 export const userRelations = relations(user, ({ many }) => ({
   memberships: many(freezerMember),
+  apiTokens: many(apiToken),
+}));
+
+export const apiTokenRelations = relations(apiToken, ({ one }) => ({
+  user: one(user, { fields: [apiToken.userId], references: [user.id] }),
 }));
 
 export const freezerRelations = relations(freezer, ({ many }) => ({
@@ -197,6 +286,7 @@ export const freezerRelations = relations(freezer, ({ many }) => ({
   drawers: many(drawer),
   items: many(item),
   suggestions: many(foodSuggestion),
+  barcodes: many(barcode),
   invites: many(invite),
 }));
 
@@ -217,6 +307,10 @@ export const itemRelations = relations(item, ({ one }) => ({
 
 export const foodSuggestionRelations = relations(foodSuggestion, ({ one }) => ({
   freezer: one(freezer, { fields: [foodSuggestion.freezerId], references: [freezer.id] }),
+}));
+
+export const barcodeRelations = relations(barcode, ({ one }) => ({
+  freezer: one(freezer, { fields: [barcode.freezerId], references: [freezer.id] }),
 }));
 
 export const inviteRelations = relations(invite, ({ one }) => ({

@@ -12,6 +12,11 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: "autoUpdate",
+      // Own service worker (src/sw.ts) instead of a generated one, so it can handle push events.
+      // It keeps the generated worker's file name (sw.js), so installed apps update in place.
+      strategies: "injectManifest",
+      srcDir: "src",
+      filename: "sw.ts",
       manifest: {
         name: "Freezer Manager",
         short_name: "Freezer",
@@ -43,10 +48,7 @@ export default defineConfig({
           { src: "/monochrome-icon-512x512.png", sizes: "512x512", type: "image/png", purpose: "monochrome" },
         ],
       },
-      workbox: {
-        // App shell offline; API, auth callbacks and data are never served from the SW.
-        navigateFallback: "/index.html",
-        navigateFallbackDenylist: [/^\/api\//],
+      injectManifest: {
         // Fonts: only the Latin subsets of Google Sans Flex plus the icon font (other scripts load on demand).
         globPatterns: ["**/*.{js,css,html,svg,png,ico,wasm}", "assets/google-sans-flex-latin*.woff2", "assets/material-symbols-rounded*.woff2"],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,

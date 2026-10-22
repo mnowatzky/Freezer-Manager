@@ -6,6 +6,11 @@ A self-hosted, realtime, multi-user PWA that tracks what's in your freezer: whic
 - **QR stickers** for reusable containers: scan one with the phone camera to see what's inside or to freeze something new
 - **Passkey login** through [Pocket ID](https://pocket-id.org/), with no passwords to manage
 - **Invites:** share a freezer through a link; people without an account can sign up through it
+- **Undo** for taking out and deleting, **categories**, and **best-before dates** with an "Eat soon" list
+- **Barcode scanning:** scan a product to fill in its name and category, from the freezer's own memory or [Open Food Facts](https://world.openfoodfacts.org/)
+- **Export and import** as JSON (backup) or CSV (spreadsheet)
+- **API and Home Assistant:** personal API tokens for a small REST API, with a ready-made Home Assistant setup
+- **Push notifications** a week before an item's best-before date and on the day itself (optional)
 - **Installable PWA** for Android, iOS and desktop, built on Material 3 Expressive
 - **English and German:** the app follows the browser's language and falls back to English
 
@@ -14,6 +19,7 @@ A self-hosted, realtime, multi-user PWA that tracks what's in your freezer: whic
 - [Self-hosting with Docker Compose](#self-hosting-with-docker-compose)
 - [How it works](#how-it-works)
 - [Development](#development)
+- [API and Home Assistant](#api-and-home-assistant)
 - [QR stickers and scanning](#qr-stickers-and-scanning)
 - [Translations](#translations)
 - [Design](#design-material-3-expressive)
@@ -93,6 +99,14 @@ Settings worth knowing:
   ```
 - **`REGISTRATION_CODE` (optional):** lets people without an invite create an account on the login page ("No account yet?"). Anyone who knows the code can register, so hand it out personally. Wrong attempts are rate-limited. Leave it empty to make the app invite-only.
 
+- **Push notifications (optional):** every member of a freezer gets a notification a week before an item's best-before date and on the day itself. Generate the keys once and put them into `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY`, and set `VAPID_SUBJECT` to a contact such as `mailto:you@example.com`:
+  ```bash
+  npx web-push generate-vapid-keys
+  ```
+  The notifications go out once a day after `NOTIFY_HOUR` (default 9) in the time zone `TZ` (default UTC, e.g. `Europe/Berlin`). Each person turns them on per device under **Settings**. On iPhone and iPad this needs the installed app (iOS 16.4 or later). Without the keys, the switch is hidden. If you change the keys, devices have to turn notifications on again.
+
+- **Barcode lookups:** a scanned product the freezer doesn't know yet is looked up on Open Food Facts. The API does that on the browser's behalf, so OFF never sees your users' IP addresses. Set `OFF_CONTACT` to an email address or URL; OFF asks API clients to identify themselves. The API caches answers for a day and allows 10 lookups per minute per user and 15 in total, which keeps the server within OFF's limits. `OFF_ENABLED=false` turns the lookups off; scanning then only uses the freezer's own barcode memory.
+
 Keep a copy of `.env` somewhere safe. If you lose `BETTER_AUTH_SECRET`, all sessions become invalid.
 
 ### 4. Start the stack
@@ -166,6 +180,10 @@ docker compose exec -T postgres pg_dump -U freezer freezer | gzip > freezer-$(da
 
 The `zero-replica` volume is a cache that zero-cache rebuilds by itself. If you use the bundled Pocket ID, also back up the `pocket-id-data` volume and `POCKET_ID_ENCRYPTION_KEY`.
 
+**Export and import in the app** are a different thing: under **Settings → Data**, any member can download one freezer as JSON (items, drawers, remembered foods and barcodes) or as a CSV spreadsheet, and import such a file again, into the same freezer, another one, or a new one. That covers a user's own data, for example to move to another instance or to fill a freezer from a spreadsheet. It doesn't replace `pg_dump`: accounts, members, invites and other freezers aren't part of it.
+
+A CSV for import needs a `name` column; `quantity`, `unit`, `category`, `drawer`, `container`, `frozen_at`, `best_before` and `notes` are optional. Units and categories can be written in English or German ("Stück", "Fleisch"), dates as `2026-10-22` or `22.10.2026`, and the separator can be `;`, `,` or a tab. Without a `best_before` column, dates are filled in from the food's storage time as when freezing in the app. The preview shows which rows are skipped and why, which drawers will be created, and which container numbers are already taken (those items are imported without a number).
+
 ### Optional: bundled Pocket ID
 
 To run Pocket ID inside this stack, uncomment and set these values in `.env`:
@@ -217,6 +235,18 @@ If you lose `POCKET_ID_ENCRYPTION_KEY`, the instance becomes unusable.
    - by entering the `REGISTRATION_CODE` on the login page, if one is set. They then create their own freezer.
 5. **Invites** need work that can only happen on the server: random tokens, and a Pocket ID signup link created through the Pocket ID admin API. They therefore use small REST endpoints. The invite rows themselves sync through Zero.
 6. **CSRF:** the API rejects state-changing requests to its own endpoints unless they come from the web app's origin. Better Auth checks `/api/auth` itself, and the zero-cache API key protects `/api/zero`.
+
+### Barcodes
+
+- **Lookup order:** the freezer's own `barcode` table (synced, so no network round trip), then `GET /api/products/:code`, otherwise the user types the name. Saving an item with a scanned code stores the name, unit and category it was actually saved with, so corrections stick for the whole household.
+- **`/api/products/:code`** (`apps/api/src/products.ts`) asks Open Food Facts with a custom User-Agent and a 5-second timeout, maps the product to name, brand, package size and category (from `categories_tags`), and caches answers, including "not found", for 24 hours in memory. Product data from Open Food Facts is licensed under the [ODbL](https://opendatacommons.org/licenses/odbl/1-0/); the form says so when it used it.
+
+### Push notifications
+
+- **Subscriptions:** the switch in Settings asks for permission, subscribes the device with the server's VAPID public key, and posts the subscription to `/api/push/subscriptions`. The API only accepts endpoints of the browsers' push services (Google, Apple, Mozilla, Microsoft), because it sends requests to them. Signing out removes the device's subscription.
+- **The job** (`apps/api/src/expiry-job.ts`) checks every hour and runs once a day after `NOTIFY_HOUR`. It collects items whose best-before date is at most a week away ("soon") or is today ("due"), and sends each member of the freezer one notification per device, in the language that device uses. The `expiry_notice` table records which date each kind was sent for, so a changed date notifies again. Subscriptions the push service reports as gone (404/410) are deleted. With several API replicas, an advisory lock lets only one run at a time.
+- **The service worker** (`apps/web/src/sw.ts`, built by `vite-plugin-pwa` in `injectManifest` mode) shows the notification, and a tap opens the app on the "Eat soon" list.
+- `push_subscription` and `expiry_notice` stay on the server: they are not part of the `zero_app` publication.
 
 ## Development
 
@@ -276,6 +306,14 @@ cp .env.example .env
 
 Changes in one window now appear in the other immediately.
 
+### Trying the API with Home Assistant
+
+`docker-compose.dev.yml` has an optional Home Assistant (profile `home-assistant`) whose configuration in `dev/home-assistant/` is the example from [API and Home Assistant](#api-and-home-assistant):
+
+1. With `pnpm dev` running, create a read/write token under **Settings → API tokens**.
+2. `dev/home-assistant/write-secrets.sh fm_…` writes the token and your first freezer's URLs to `dev/home-assistant/secrets.yaml` (pass a freezer ID as the second argument for another one).
+3. `docker compose -f docker-compose.dev.yml --profile home-assistant up -d home-assistant`, then open <http://localhost:8123> and create the Home Assistant account. Its state stays in `dev/home-assistant/` and isn't committed.
+
 ### Ports (dev)
 
 | Service | URL |
@@ -285,6 +323,7 @@ Changes in one window now appear in the other immediately.
 | zero-cache | http://localhost:4848 |
 | Pocket ID | http://localhost:1411 |
 | Postgres | localhost:5432 (`freezer` / `freezer`) |
+| Home Assistant (optional, profile `home-assistant`) | http://localhost:8123 |
 
 ### Testing on a phone (Tailscale Serve)
 
@@ -352,6 +391,131 @@ git push --follow-tags
 ```
 
 [`release.yml`](.github/workflows/release.yml) then runs the checks again, pushes `api-0.2.0`, `web-0.2.0`, `api-latest` and `web-latest` to Docker Hub (`linux/amd64` and `linux/arm64`) and creates a GitHub release with generated notes. It needs the repository secrets `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` (a Docker Hub access token with read & write scope).
+
+## API and Home Assistant
+
+Create a token under **Settings → API tokens**. It is shown once; only a hash is stored. A token acts on your behalf in all freezers you're a member of, with the same permissions as the app. "Read only" tokens can't change anything. Tokens are rate-limited to 120 requests per minute.
+
+All requests send `Authorization: Bearer fm_…`. Dates are `YYYY-MM-DD`.
+
+| Request | Scope | What it does |
+| --- | --- | --- |
+| `GET /api/v1/freezers` | read | Your freezers: `[{ id, name }]` |
+| `GET /api/v1/freezers/:id/items?category=&soon=true` | read | Items with drawer, best-before date, `daysLeft` and `freshness` (`ok`, `soon`, `expired`) |
+| `GET /api/v1/freezers/:id/summary` | read | `{ items, soon, expired, byCategory, nextExpiring }` |
+| `POST /api/v1/freezers/:id/items` | write | Freeze something: `{ name, quantity?, unit?, category?, drawer?, containerNumber?, frozenAt?, bestBefore?, notes?, barcode? }`. `drawer` is a name, ID or position (`3` = third drawer; default: the first drawer); unit and category default to what the food was last frozen as. |
+| `POST /api/v1/items/:id/take` | write | Take out `{ amount? }` (default: all) |
+| `POST /api/v1/freezers/:id/take` | write | Take out by name `{ name, amount? }` (default 1), from the oldest items first |
+| `DELETE /api/v1/items/:id` | write | Delete an item |
+
+Changes show up in the apps right away, like any other change. Find your freezer's ID with:
+
+```bash
+curl -H "Authorization: Bearer fm_…" https://freezer.example.com/api/v1/freezers
+```
+
+### Home Assistant
+
+No custom integration needed. Put the token into `secrets.yaml` as `freezer_token: "Bearer fm_…"`, then add to `configuration.yaml` (replace the host and `<freezer-id>`):
+
+```yaml
+rest:
+  - resource: https://freezer.example.com/api/v1/freezers/<freezer-id>/summary
+    headers:
+      Authorization: !secret freezer_token
+    scan_interval: 900
+    sensor:
+      - name: Freezer eat soon
+        unique_id: freezer_eat_soon
+        icon: mdi:fridge-alert
+        # Items due within a week, plus those already past their date.
+        value_template: "{{ value_json.soon + value_json.expired }}"
+        json_attributes: [items, soon, expired, byCategory, nextExpiring]
+
+rest_command:
+  freezer_add:
+    url: https://freezer.example.com/api/v1/freezers/<freezer-id>/items
+    method: post
+    headers:
+      Authorization: !secret freezer_token
+    content_type: application/json
+    payload: >-
+      {"name": {{ food | to_json }}, "quantity": {{ quantity | default(1) | float }}
+      {%- if drawer %}, "drawer": {{ drawer | to_json }}{% endif %}}
+  freezer_take:
+    url: https://freezer.example.com/api/v1/freezers/<freezer-id>/take
+    method: post
+    headers:
+      Authorization: !secret freezer_token
+    content_type: application/json
+    payload: '{"name": {{ food | to_json }}, "amount": {{ quantity | default(1) | float }}}'
+```
+
+The sensor's state is the number of items to eat soon; the attribute `nextExpiring` lists them with `name`, `daysLeft` and `drawer`, e.g. for a dashboard card or an automation.
+
+**Voice:** with an [Assist custom sentence](https://www.home-assistant.io/voice_control/custom_sentences/), "I froze 2 Bolognese in drawer 3" works with Assist: Home Assistant's voice assistants, the Assist dialog in the app, and Assist devices. Amazon Alexa and Google Assistant don't pass such free-form sentences on to Home Assistant through its built-in integrations; that needs a custom Alexa skill or similar. `config/custom_sentences/en/freezer.yaml`:
+
+```yaml
+language: "en"
+intents:
+  FreezerAdd:
+    data:
+      - sentences:
+          - "I froze {quantity} {food} in drawer {drawer}"
+          - "I froze {quantity} {food}"
+  FreezerTake:
+    data:
+      - sentences:
+          - "I took {quantity} {food} [out] of the freezer"
+lists:
+  quantity:
+    range: { from: 1, to: 20 }
+  food:
+    wildcard: true
+  # A number, not a wildcard: wildcards match greedily, and with two of them "Lasagne in drawer 3"
+  # ends up as the food's name.
+  drawer:
+    range: { from: 1, to: 20 }
+```
+
+and in `configuration.yaml`:
+
+```yaml
+intent_script:
+  FreezerAdd:
+    action:
+      - action: rest_command.freezer_add
+        data:
+          food: "{{ food }}"
+          quantity: "{{ quantity }}"
+          # The drawer's position in the app (1 = top), whatever the drawers are called.
+          drawer: "{{ drawer if drawer is defined else '' }}"
+        response_variable: result
+      - stop: ""
+        response_variable: result
+    # Answer with what the API actually did, so a typo or unknown drawer isn't reported as done.
+    speech:
+      text: >-
+        {% if action_response.status == 201 %}Froze {{ quantity | int }} {{ food }}.
+        {%- else %}That didn't work: {{ action_response.content.message | default('error ' ~ action_response.status) }}{% endif %}
+  FreezerTake:
+    action:
+      - action: rest_command.freezer_take
+        data:
+          food: "{{ food }}"
+          quantity: "{{ quantity }}"
+        response_variable: result
+      - stop: ""
+        response_variable: result
+    speech:
+      text: >-
+        {% if action_response.status == 200 %}Took {{ action_response.content.taken | int }} {{ food }} out, {{ action_response.content.remaining | int }} left.
+        {%- else %}That didn't work: {{ action_response.content.message | default('error ' ~ action_response.status) }}{% endif %}
+```
+
+For German, put the same file under `custom_sentences/de/` with `language: "de"` and sentences like `"ich habe {quantity} {food} in Schublade {drawer} eingefroren"` and `"ich habe {quantity} {food} [aus dem Gefrierschrank] genommen"`. The replies come from `intent_script`, so translate those texts too if you want German answers.
+
+To try all of this against the dev stack, see [Trying the API with Home Assistant](#trying-the-api-with-home-assistant).
 
 ## QR stickers and scanning
 

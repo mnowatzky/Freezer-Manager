@@ -1,6 +1,7 @@
 import "@freezer/shared/context";
 import { buildInfo } from "@freezer/shared/build-info";
-import { INVITE_TTL_MS } from "@freezer/shared/domain";
+import { BARCODE_PATTERN, INVITE_TTL_MS } from "@freezer/shared/domain";
+import { LOCALES, pickLocale } from "@freezer/shared/i18n";
 import { mutators } from "@freezer/shared/mutators";
 import { queries } from "@freezer/shared/queries";
 import { schema as zeroSchema } from "@freezer/shared/zero-schema";
@@ -11,12 +12,15 @@ import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { HTTPException } from "hono/http-exception";
 import { randomBytes, randomUUID } from "node:crypto";
+import { z } from "zod";
 import { auth } from "./auth";
 import { sameOriginOnly } from "./csrf";
 import { db, schema, zeroDb } from "./db";
 import { env } from "./env";
 import { errorFields, log } from "./log";
 import { createSignupLink } from "./pocket-id";
+import { LookupFailed, lookupProduct, toProduct } from "./products";
+import { generateToken, publicApi } from "./public-api";
 import { clientIp, rateLimiter } from "./rate-limit";
 import { secretsEqual } from "./secrets";
 
@@ -43,8 +47,11 @@ app.get("/api/health", (c) => c.json({ ok: true, ...build }));
 // Better Auth checks origins for /api/auth itself; /api/zero is called server-to-server by
 // zero-cache and protected by the shared API key instead.
 const csrf = sameOriginOnly(env.webOrigin);
+// The public API (/api/v1) authenticates with Bearer tokens, not cookies, so CSRF doesn't apply.
 app.use("/api/*", (c, next) =>
-  c.req.path.startsWith("/api/auth/") || c.req.path.startsWith("/api/zero/") ? next() : csrf(c, next),
+  c.req.path.startsWith("/api/auth/") || c.req.path.startsWith("/api/zero/") || c.req.path.startsWith("/api/v1/")
+    ? next()
+    : csrf(c, next),
 );
 
 app.on(["GET", "POST"], "/api/auth/*", (c) => auth.handler(c.req.raw));
@@ -183,3 +190,116 @@ app.post("/api/invites/:token/accept", async (c) => {
     .onConflictDoNothing();
   return c.json({ freezerId: row.invite.freezerId });
 });
+
+// ---------------------------------------------------------------------------
+// Web Push subscriptions for best-before notifications (see expiry-job.ts). Only available when
+// the VAPID keys are configured; the web app hides the switch otherwise.
+// ---------------------------------------------------------------------------
+
+// The server POSTs to subscription endpoints, so only accept the browsers' push services
+// (otherwise anyone signed in could make it send requests to arbitrary hosts).
+const PUSH_HOSTS = ["fcm.googleapis.com", "push.apple.com", "push.services.mozilla.com", "notify.windows.com"];
+export function isPushEndpoint(endpoint: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(endpoint);
+  } catch {
+    return false;
+  }
+  return url.protocol === "https:" && !url.port && PUSH_HOSTS.some((h) => url.hostname === h || url.hostname.endsWith(`.${h}`));
+}
+
+const pushSubscriptionBody = z.object({
+  endpoint: z.string().max(2000).refine(isPushEndpoint),
+  keys: z.object({ p256dh: z.string().min(1).max(200), auth: z.string().min(1).max(100) }),
+  locale: z.enum(LOCALES),
+});
+
+app.get("/api/push/key", async (c) => {
+  if (!(await sessionUserId(c))) return c.json({ error: "unauthorized" }, 401);
+  if (!env.vapid) return c.json({ error: "disabled" }, 404);
+  return c.json({ publicKey: env.vapid.publicKey });
+});
+
+app.post("/api/push/subscriptions", bodyLimit({ maxSize: 4 * 1024 }), async (c) => {
+  const userID = await sessionUserId(c);
+  if (!userID) return c.json({ error: "unauthorized" }, 401);
+  if (!env.vapid) return c.json({ error: "disabled" }, 404);
+  const body = pushSubscriptionBody.safeParse(await c.req.json().catch(() => null));
+  if (!body.success) return c.json({ error: "invalid" }, 400);
+  const { endpoint, keys, locale } = body.data;
+  // One row per device: a device that signs in as someone else moves to that user.
+  await db
+    .insert(schema.pushSubscription)
+    .values({ id: randomUUID(), userId: userID, endpoint, p256dh: keys.p256dh, auth: keys.auth, locale, createdAt: new Date() })
+    .onConflictDoUpdate({
+      target: schema.pushSubscription.endpoint,
+      set: { userId: userID, p256dh: keys.p256dh, auth: keys.auth, locale },
+    });
+  return c.body(null, 204);
+});
+
+app.delete("/api/push/subscriptions", bodyLimit({ maxSize: 4 * 1024 }), async (c) => {
+  const userID = await sessionUserId(c);
+  if (!userID) return c.json({ error: "unauthorized" }, 401);
+  const body = (await c.req.json().catch(() => null)) as { endpoint?: unknown } | null;
+  if (typeof body?.endpoint !== "string") return c.json({ error: "invalid" }, 400);
+  await db
+    .delete(schema.pushSubscription)
+    .where(and(eq(schema.pushSubscription.endpoint, body.endpoint), eq(schema.pushSubscription.userId, userID)));
+  return c.body(null, 204);
+});
+
+// ---------------------------------------------------------------------------
+// Barcode lookup via Open Food Facts (see products.ts). OFF allows about 15 product reads per
+// minute per IP, and all users share the server's IP, so upstream calls are rate-limited per
+// user and in total; cached answers don't count.
+// ---------------------------------------------------------------------------
+
+const productUserLimit = rateLimiter(10, 60_000);
+const productGlobalLimit = rateLimiter(15, 60_000);
+
+app.get("/api/products/:code", async (c) => {
+  const userID = await sessionUserId(c);
+  if (!userID) return c.json({ error: "unauthorized" }, 401);
+  if (!env.openFoodFacts.enabled) return c.json({ error: "disabled" }, 404);
+  const code = c.req.param("code");
+  if (!BARCODE_PATTERN.test(code)) return c.json({ error: "invalid" }, 400);
+  const locale = pickLocale([c.req.query("lang") ?? ""]);
+  try {
+    const product = await lookupProduct(code, () => productUserLimit.allow(userID) && productGlobalLimit.allow("all"));
+    if (product === "rate_limited") return c.json({ error: "rate_limited" }, 429);
+    if (!product) return c.json({ found: false });
+    return c.json({ found: true, ...toProduct(product, locale) });
+  } catch (err) {
+    if (err instanceof LookupFailed) return c.json({ error: "unavailable" }, 502);
+    throw err;
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Personal API tokens (Settings → API tokens) and the public API they unlock (public-api.ts).
+// The token is shown once; only its SHA-256 hash is stored. Listing and revoking go through Zero.
+// ---------------------------------------------------------------------------
+
+const MAX_ACTIVE_TOKENS = 20;
+const tokenBody = z.object({ name: z.string().trim().min(1).max(100), scope: z.enum(["read", "write"]) });
+
+app.post("/api/tokens", bodyLimit({ maxSize: 1024 }), async (c) => {
+  const userID = await sessionUserId(c);
+  if (!userID) return c.json({ error: "unauthorized" }, 401);
+  const body = tokenBody.safeParse(await c.req.json().catch(() => null));
+  if (!body.success) return c.json({ error: "invalid" }, 400);
+  const active = await db
+    .select({ id: schema.apiToken.id })
+    .from(schema.apiToken)
+    .where(and(eq(schema.apiToken.userId, userID), isNull(schema.apiToken.revokedAt)));
+  if (active.length >= MAX_ACTIVE_TOKENS) return c.json({ error: "too_many_tokens" }, 409);
+  const { token, hash, prefix } = generateToken();
+  const id = randomUUID();
+  await db.insert(schema.apiToken).values({ id, userId: userID, name: body.data.name, tokenHash: hash, prefix, scope: body.data.scope, createdAt: new Date() });
+  log("info", "API token created", { user: userID, token: id, scope: body.data.scope });
+  return c.json({ id, token }, 201);
+});
+
+app.route("/api/v1", publicApi());

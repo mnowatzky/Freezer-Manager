@@ -1,14 +1,29 @@
-import { todayAsDate, UNITS, type Unit } from "@freezer/shared/domain";
+import {
+  CATEGORY_IDS,
+  defaultBestBefore,
+  isCategory,
+  parsePackageSize,
+  shelfLifeMonths,
+  suggestionId,
+  todayAsDate,
+  UNITS,
+  type Category,
+  type Unit,
+} from "@freezer/shared/domain";
 import { t } from "../lib/i18n";
 import { AnimatePresence, motion, useIsPresent } from "motion/react";
 import { useMemo, useRef, useState } from "react";
 import { recentDrawer, rememberDrawer } from "../lib/active-freezer";
-import { dateToInput, inputToDate } from "../lib/format";
+import { lookupBarcode } from "../lib/barcode-lookup";
+import { dateToInput, inputToDate, quantityLabel } from "../lib/format";
 import type { FreezerDetail, ItemRow } from "../lib/freezer-data";
+import { useToast } from "../lib/toast";
 import { useRemoveWithUndo } from "../lib/undo";
 import { mutators, useCanWrite, useMutate } from "../lib/zero";
 import { motionScheme } from "../theme/motion";
-import { Button, Icon, SelectField, Sheet, TextArea, TextField } from "./m3";
+import { CategoryChips } from "./CategoryChips";
+import { Button, FilterChip, Icon, IconButton, SelectField, Sheet, TextArea, TextField } from "./m3";
+import { ScannerView } from "./Scanner";
 
 type FormProps = {
   freezer: FreezerDetail;
@@ -47,12 +62,24 @@ export function ItemForm({ freezer, item, containerNumber = null, onDone }: Form
   const [name, setName] = useState(item?.name ?? "");
   const [quantity, setQuantity] = useState(String(item?.quantity ?? 1));
   const [unit, setUnit] = useState<Unit>((item?.unit as Unit) ?? "piece");
+  const [category, setCategory] = useState<Category | null>(isCategory(item?.category) ? item.category : null);
   const [drawerId, setDrawerId] = useState(defaultDrawer);
   const [frozenAt, setFrozenAt] = useState(dateToInput(item?.frozenAt ?? todayAsDate()));
   const [container, setContainer] = useState(String(item?.containerNumber ?? containerNumber ?? ""));
   const [notes, setNotes] = useState(item?.notes ?? "");
+  // Best-before follows the food's storage time until it's edited by hand. When editing an item, its
+  // stored date (or none) counts as chosen, so existing items aren't changed behind the user's back.
+  const [manualBestBefore, setManualBestBefore] = useState<string | null>(
+    item ? (item.bestBefore !== null ? dateToInput(item.bestBefore) : "") : null,
+  );
   const [focused, setFocused] = useState(false);
   const nameAreaRef = useRef<HTMLDivElement>(null);
+  const toast = useToast();
+  // Barcode scanning (only when freezing something new): the scanner replaces the form meanwhile.
+  const [scanning, setScanning] = useState(false);
+  const [barcode, setBarcode] = useState<string | null>(null);
+  const [fromOpenFoodFacts, setFromOpenFoodFacts] = useState(false);
+  const [packageSize, setPackageSize] = useState<ReturnType<typeof parsePackageSize>>(null);
 
   const suggestions = useMemo(() => {
     const q = name.trim().toLocaleLowerCase("de");
@@ -60,6 +87,46 @@ export function ItemForm({ freezer, item, containerNumber = null, onDone }: Form
       .filter((s) => !q || (s.name.toLocaleLowerCase("de").includes(q) && s.name.toLocaleLowerCase("de") !== q))
       .slice(0, 5);
   }, [name, freezer.suggestions]);
+
+  const remembered = freezer.suggestions.find((s) => s.id === suggestionId(freezer.id, name))?.shelfLifeMonths;
+  const months = shelfLifeMonths(remembered, category);
+  const autoBestBefore = frozenAt ? defaultBestBefore(inputToDate(frozenAt), months) : null;
+  const bestBefore = manualBestBefore ?? (autoBestBefore !== null ? dateToInput(autoBestBefore) : "");
+
+  const chooseCategory = (c: Category | null) => {
+    setCategory(c);
+    // An item from before best-before dates gets the default once someone gives it a category.
+    if (item?.bestBefore === null && manualBestBefore === "") setManualBestBefore(null);
+  };
+
+  const onBarcode = async (code: string) => {
+    const nameFromEarlierScan = barcode !== null;
+    setScanning(false);
+    setBarcode(code);
+    setFromOpenFoodFacts(false);
+    setPackageSize(null);
+    const found = await lookupBarcode(code, freezer);
+    if (found.source === "freezer") {
+      setName(found.name);
+      if (found.unit) {
+        setQuantity(String(found.quantity));
+        setUnit(found.unit);
+      }
+      chooseCategory(found.category);
+    } else if (found.source === "off") {
+      setName(found.name);
+      if (found.category) chooseCategory(found.category);
+      // One bag or piece by default; the package size (e.g. 750 g) is a one-tap alternative.
+      setQuantity("1");
+      setUnit(found.category === "vegetables" || found.category === "fruit" || found.category === "herbs" ? "bag" : "piece");
+      setPackageSize(parsePackageSize(found.packageSize));
+      setFromOpenFoodFacts(true);
+    } else {
+      // The name field gets focus when the form comes back; don't leave the previous product's name in it.
+      if (nameFromEarlierScan) setName("");
+      toast(found.reason === "limited" ? t.item.lookupLimited : found.reason === "failed" ? t.item.lookupFailed : t.item.productNotFound);
+    }
+  };
 
   const qty = Number(quantity.replace(",", "."));
   const valid = Boolean(name.trim() && qty > 0 && drawerId && frozenAt);
@@ -75,15 +142,29 @@ export function ItemForm({ freezer, item, containerNumber = null, onDone }: Form
       unit,
       frozenAt: inputToDate(frozenAt),
       notes: notes.trim() || null,
+      category,
+      bestBefore: bestBefore ? inputToDate(bestBefore) : null,
     };
     const ok = item
       ? await mutate(mutators.item.update({ id: item.id, ...fields }))
-      : await mutate(mutators.item.add({ id: crypto.randomUUID(), freezerId: freezer.id, ...fields }));
+      : await mutate(mutators.item.add({ id: crypto.randomUUID(), freezerId: freezer.id, ...fields, ...(barcode ? { barcode } : {}) }));
     if (ok) {
       if (!item) rememberDrawer(drawerId);
       onDone();
     }
   };
+
+  if (scanning)
+    return (
+      <div className="flex flex-col gap-2">
+        <ScannerView mode="barcode" onResult={(code) => void onBarcode(code)} />
+        <div className="flex justify-end">
+          <Button type="button" variant="text" onClick={() => setScanning(false)}>
+            {t.common.cancel}
+          </Button>
+        </div>
+      </div>
+    );
 
   return (
     <form onSubmit={(e) => void submit(e)} className="flex flex-col gap-4">
@@ -101,8 +182,19 @@ export function ItemForm({ freezer, item, containerNumber = null, onDone }: Form
           autoFocus={!item}
           autoComplete="off"
           leadingIcon="kitchen"
+          trailing={
+            !item && <IconButton icon="barcode_scanner" label={t.item.scanBarcode} className="mr-1" onClick={() => setScanning(true)} />
+          }
           onChange={(e) => setName(e.target.value)}
         />
+        {barcode && (
+          <p className="type-body-small flex flex-wrap items-center gap-x-1 px-4 pt-1 text-on-surface-variant">
+            <Icon name="barcode" size={16} />
+            <span className="whitespace-nowrap">{t.item.barcode(barcode)}</span>
+            {/* Open Food Facts data is licensed under the ODbL, which asks for attribution. */}
+            {fromOpenFoodFacts && <span className="whitespace-nowrap">· {t.item.offSource}</span>}
+          </p>
+        )}
         {/* Suggestions as chips that animate in/out; ✕ removes a suggestion for everyone. */}
         <AnimatePresence initial={false}>
           {focused && suggestions.length > 0 && (
@@ -131,7 +223,10 @@ export function ItemForm({ freezer, item, containerNumber = null, onDone }: Form
                       onMouseDown={(e) => e.preventDefault()}
                       onClick={() => {
                         setName(s.name);
-                        if (!item) setUnit(s.lastUnit as Unit);
+                        if (!item) {
+                          setUnit(s.lastUnit as Unit);
+                          if (isCategory(s.lastCategory)) setCategory(s.lastCategory);
+                        }
                         nameAreaRef.current?.querySelector("input")?.focus();
                       }}
                     >
@@ -155,6 +250,13 @@ export function ItemForm({ freezer, item, containerNumber = null, onDone }: Form
         </AnimatePresence>
       </div>
 
+      <div className="flex flex-col gap-2">
+        <span className="type-label-medium text-on-surface-variant">
+          {t.item.category} ({t.common.optional})
+        </span>
+        <CategoryChips options={CATEGORY_IDS} value={category} onChange={chooseCategory} label={t.item.category} bleed="px-6" />
+      </div>
+
       <div className="grid grid-cols-2 gap-3">
         <TextField label={t.item.quantity} inputMode="decimal" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
         <SelectField label={t.item.unit} value={unit} onChange={(e) => setUnit(e.target.value as Unit)}>
@@ -165,6 +267,21 @@ export function ItemForm({ freezer, item, containerNumber = null, onDone }: Form
           ))}
         </SelectField>
       </div>
+
+      {packageSize && !(qty === packageSize.quantity && unit === packageSize.unit) && (
+        <div className="-mt-2 flex">
+          <FilterChip
+            selected={false}
+            icon="scale"
+            onClick={() => {
+              setQuantity(String(packageSize.quantity));
+              setUnit(packageSize.unit);
+            }}
+          >
+            {quantityLabel(packageSize.quantity, packageSize.unit)}
+          </FilterChip>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 items-start gap-3">
         <SelectField label={t.item.drawer} value={drawerId} onChange={(e) => setDrawerId(e.target.value)}>
@@ -185,7 +302,16 @@ export function ItemForm({ freezer, item, containerNumber = null, onDone }: Form
         />
       </div>
 
-      <TextField type="date" label={t.item.frozenAt} value={frozenAt} onChange={(e) => setFrozenAt(e.target.value)} />
+      <div className="grid grid-cols-2 items-start gap-3">
+        <TextField type="date" label={t.item.frozenAt} value={frozenAt} onChange={(e) => setFrozenAt(e.target.value)} />
+        <TextField
+          type="date"
+          label={t.item.bestBefore}
+          value={bestBefore}
+          supporting={manualBestBefore === null && months ? t.item.bestBeforeDefault(months) : t.common.optional}
+          onChange={(e) => setManualBestBefore(e.target.value)}
+        />
+      </div>
       <TextArea label={`${t.item.notes} (${t.common.optional})`} rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
 
       <div className="flex justify-end gap-2 pt-2">

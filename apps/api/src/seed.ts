@@ -1,6 +1,6 @@
 // Dev seed: `pnpm db:seed --email you@example.com` (run after your first login).
 // Creates a demo freezer "Keller" owned by that user.
-import { suggestionId } from "@freezer/shared/domain";
+import { CATEGORIES, defaultBestBefore, suggestionId, type Category } from "@freezer/shared/domain";
 import { de } from "@freezer/shared/i18n";
 import { eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
@@ -16,6 +16,10 @@ if (!owner) throw new Error(`No user with email ${values.email}. Log in once via
 const freezerId = randomUUID();
 const now = new Date();
 const daysAgo = (d: number) => new Date(Date.now() - d * 86_400_000).toISOString().slice(0, 10);
+const bestBefore = (frozenAt: string, months: number | null) => {
+  const date = defaultBestBefore(Date.parse(`${frozenAt}T00:00:00Z`), months);
+  return date === null ? null : new Date(date).toISOString().slice(0, 10);
+};
 
 await db.transaction(async (tx) => {
   await tx.insert(schema.freezer).values({ id: freezerId, name: "Keller", ownerId: owner.id, createdAt: now });
@@ -29,19 +33,19 @@ await db.transaction(async (tx) => {
   }));
   await tx.insert(schema.drawer).values(drawers);
 
-  const items: [string, number, string, number, number | null][] = [
-    ["Frikadellen", 5, "piece", 12, 1],
-    ["Chili con Carne", 2, "portion", 40, 2],
-    ["Erbsen", 450, "g", 90, null],
-    ["Brötchen", 6, "piece", 5, null],
-    ["Lasagne", 1, "portion", 150, 3],
-    ["Himbeeren", 1, "bag", 200, null],
-    ["Hühnerbrühe", 1, "l", 30, 4],
-    ["Pizzateig", 2, "piece", 60, 5],
-    ["Spinat", 300, "g", 400, null],
-    ["Gulasch", 3, "portion", 20, 6],
+  const items: [string, number, string, number, number | null, Category][] = [
+    ["Frikadellen", 5, "piece", 12, 1, "meat"],
+    ["Chili con Carne", 2, "portion", 40, 2, "meals"],
+    ["Erbsen", 450, "g", 90, null, "vegetables"],
+    ["Brötchen", 6, "piece", 5, null, "baked"],
+    ["Lasagne", 1, "portion", 150, 3, "meals"],
+    ["Himbeeren", 1, "bag", 200, null, "fruit"],
+    ["Hühnerbrühe", 1, "l", 30, 4, "soups"],
+    ["Pizzateig", 2, "piece", 60, 5, "baked"],
+    ["Spinat", 300, "g", 400, null, "vegetables"],
+    ["Gulasch", 3, "portion", 20, 6, "meals"],
   ];
-  for (const [i, [name, quantity, unit, age, containerNumber]] of items.entries()) {
+  for (const [i, [name, quantity, unit, age, containerNumber, category]] of items.entries()) {
     await tx.insert(schema.item).values({
       id: randomUUID(),
       freezerId,
@@ -51,12 +55,14 @@ await db.transaction(async (tx) => {
       quantity,
       unit,
       frozenAt: daysAgo(age),
+      bestBefore: bestBefore(daysAgo(age), CATEGORIES[category].months),
+      category,
       createdBy: owner.id,
       createdAt: now,
     });
     await tx
       .insert(schema.foodSuggestion)
-      .values({ id: suggestionId(freezerId, name), freezerId, name, lastUnit: unit, useCount: 1 })
+      .values({ id: suggestionId(freezerId, name), freezerId, name, lastUnit: unit, lastCategory: category, useCount: 1 })
       .onConflictDoNothing();
   }
 });

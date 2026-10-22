@@ -7,6 +7,7 @@ type Option<T extends string> = { value: T; label: string; icon?: string };
 /**
  * M3 Expressive connected button group (single select).
  * Segments share small inner corners; the selected one morphs to a full pill.
+ * On phones, segments with an icon show their label only while selected, so four fit without truncating.
  */
 export function ConnectedButtonGroup<T extends string>({
   options,
@@ -34,7 +35,10 @@ export function ConnectedButtonGroup<T extends string>({
             role="radio"
             aria-checked={selected}
             onClick={() => onChange(o.value)}
-            className={`state-layer flex h-10 min-w-0 flex-1 cursor-pointer items-center justify-center gap-1.5 px-3 type-label-large ${
+            title={o.label}
+            className={`state-layer flex h-10 min-w-0 cursor-pointer items-center justify-center gap-1.5 px-3 type-label-large ${
+              o.icon && !selected ? "flex-1 sm:flex-[2]" : "flex-[2]"
+            } ${
               selected ? "bg-secondary-container text-on-secondary-container" : "bg-surface-container-high text-on-surface-variant"
             }`}
             initial={false}
@@ -48,7 +52,7 @@ export function ConnectedButtonGroup<T extends string>({
             transition={motionScheme.fastSpatial}
           >
             {o.icon && <Icon name={o.icon} filled={selected} size={18} />}
-            <span className="truncate">{o.label}</span>
+            <span className={o.icon && !selected ? "sr-only sm:not-sr-only sm:truncate" : "truncate"}>{o.label}</span>
           </motion.button>
         );
       })}

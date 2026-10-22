@@ -1,4 +1,4 @@
-import type { Unit } from "../domain";
+import type { Category, Unit } from "../domain";
 
 // Label for a unit after a quantity (plural unless it is exactly 1).
 const units: Record<Unit, (n: number) => string> = {
@@ -59,6 +59,8 @@ export const de = {
     viewDrawer: "Schublade",
     viewDate: "Datum",
     viewName: "Name",
+    viewBestBefore: "Haltbar",
+    eatSoon: "Bald essen",
     freeze: "Einfrieren",
     scan: "Scannen",
     settings: "Einstellungen",
@@ -67,6 +69,7 @@ export const de = {
     noItems: "Noch nichts eingefroren.",
     noItemsHint: "Tippe auf „Einfrieren“ oder scanne einen Behälter.",
     noResults: "Nichts gefunden.",
+    filterCategory: "Nach Kategorie filtern",
     itemCount: (n: number) => (n === 1 ? "1 Eintrag" : `${n} Einträge`),
     view: "Ansicht",
   },
@@ -83,6 +86,26 @@ export const de = {
     takeConfirm: "Entnehmen",
     edit: "Bearbeiten",
     removeSuggestion: "Vorschlag entfernen",
+    category: "Kategorie",
+    scanBarcode: "Barcode scannen",
+    barcode: (code: string) => `Barcode ${code}`,
+    offSource: "Daten von Open Food Facts",
+    productNotFound: "Produkt nicht gefunden. Gib den Namen ein, der Barcode wird gespeichert.",
+    lookupLimited: "Zu viele Produktabfragen. Bitte warte eine Minute.",
+    lookupFailed: "Die Produktsuche ist gerade nicht erreichbar.",
+    bestBefore: "Haltbar bis",
+    bestBeforeDefault: (months: number) => `${months} ${months === 1 ? "Monat" : "Monate"} ab Einfrieren`,
+    // Days until the best-before date (negative: past it).
+    bestBeforeRelative: (days: number) => {
+      if (days === 0) return "heute";
+      if (days === 1) return "morgen";
+      if (days > 1) return days < 14 ? `in ${days} Tagen` : days < 60 ? `in ${Math.round(days / 7)} Wochen` : `in ${Math.round(days / 30)} Monaten`;
+      const over = -days;
+      if (over < 14) return over === 1 ? "1 Tag drüber" : `${over} Tage drüber`;
+      if (over < 60) return `${Math.round(over / 7)} Wochen drüber`;
+      const m = Math.round(over / 30);
+      return m === 1 ? "1 Monat drüber" : `${m} Monate drüber`;
+    },
     took: (name: string, qty: string) => `${qty} ${name} entnommen`,
     deleted: (name: string) => `„${name}“ gelöscht`,
     restoredWithoutContainer: (n: number) => `Zurückgelegt, aber ohne Behälter ${n}: Der ist inzwischen belegt.`,
@@ -90,6 +113,20 @@ export const de = {
       days < 1 ? "heute" : days < 31 ? `vor ${days} T.` : days < 365 ? `vor ${Math.floor(days / 30)} Mon.` : `vor ${Math.floor(days / 365)} J.`,
   },
   units,
+  categories: {
+    meat: "Fleisch",
+    poultry: "Geflügel",
+    fish: "Fisch",
+    vegetables: "Gemüse",
+    fruit: "Obst",
+    herbs: "Kräuter",
+    baked: "Backwaren",
+    meals: "Gerichte",
+    soups: "Suppen",
+    dairy: "Milchprodukte",
+    desserts: "Desserts",
+    other: "Sonstiges",
+  } satisfies Record<Category, string>,
   container: {
     title: (n: number) => `Behälter ${n}`,
     free: "Dieser Behälter ist leer.",
@@ -102,6 +139,8 @@ export const de = {
     open: "Öffnen",
     noCamera: "Kamera nicht verfügbar.",
     invalid: "Kein Behälter-Code erkannt.",
+    barcodeManual: "Oder Barcode eingeben",
+    invalidBarcode: "Das ist kein Barcode (8 bis 14 Ziffern).",
   },
   settings: {
     title: "Einstellungen",
@@ -120,6 +159,10 @@ export const de = {
     labels: "QR-Etiketten drucken",
     appVersion: (v: string) => `App ${v}`,
     serverVersion: (v: string) => `Server ${v}`,
+    notifications: "Benachrichtigungen",
+    notificationsHint: "Auf diesem Gerät, eine Woche vor dem Haltbarkeitsdatum und am Tag selbst",
+    notificationsBlocked: "Benachrichtigungen sind für diese Seite blockiert. Erlaube sie in den Browser-Einstellungen.",
+    notificationsInstall: "Auf iPhone und iPad gibt es Benachrichtigungen nur in der installierten App (ab iOS 16.4): Teilen → „Zum Home-Bildschirm“.",
     versionMismatch: "App und Server haben unterschiedliche Versionen. Schließe die App und öffne sie neu, um sie zu aktualisieren.",
   },
   join: {
@@ -138,6 +181,58 @@ export const de = {
     to: "Bis",
     size: "Größe (cm)",
     print: "Drucken",
+  },
+  data: {
+    title: "Daten",
+    exportJson: "Exportieren (JSON)",
+    exportJsonHint: "Vollständige Sicherung, zum Wiederherstellen oder Umziehen",
+    exportCsv: "Exportieren (CSV)",
+    exportCsvHint: "Tabelle für Excel, Numbers und Co.",
+    import: "Importieren …",
+    importHint: "JSON-Export oder CSV-Tabelle",
+    importTitle: "Importieren",
+    items: (n: number) => (n === 1 ? "1 Eintrag" : `${n} Einträge`),
+    intoFreezer: (name: string) => `In „${name}“`,
+    asNewFreezer: (name: string) => `Als neuer Gefrierschrank „${name}“`,
+    newDrawers: (names: string) => `Neue Schubladen: ${names}`,
+    overLimit: (n: number) =>
+      `${n === 1 ? "1 Schublade passt" : `${n} Schubladen passen`} nicht mehr hinein (höchstens 20). Die Einträge kommen in die erste Schublade.`,
+    containerConflicts: (n: number) =>
+      n === 1 ? "1 Behälter-Nummer ist schon belegt. Dieser Eintrag kommt ohne Nummer." : `${n} Behälter-Nummern sind schon belegt. Diese Einträge kommen ohne Nummer.`,
+    skipped: (n: number) => (n === 1 ? "1 Zeile wird übersprungen:" : `${n} Zeilen werden übersprungen:`),
+    row: (n: number) => `Zeile ${n}`,
+    skipReason: {
+      name: "Name fehlt",
+      quantity: "Menge ungültig",
+      unit: "Einheit unbekannt",
+      date: "Datum ungültig",
+      container: "Behälter-Nr. ungültig",
+      invalid: "ungültig",
+    },
+    importButton: "Importieren",
+    imported: (n: number) => (n === 1 ? "1 Eintrag importiert" : `${n} Einträge importiert`),
+    invalidFile: "Diese Datei lässt sich nicht importieren. Erwartet wird ein Export aus Freezer Manager (JSON) oder eine CSV-Datei mit einer Spalte „name“.",
+    nothingToImport: "In dieser Datei ist nichts zum Importieren.",
+  },
+  tokens: {
+    title: "API-Tokens",
+    hint: "Für Home Assistant und eigene Skripte. Ein Token handelt in deinem Namen in allen deinen Gefrierschränken.",
+    create: "Token erstellen",
+    name: "Name",
+    namePlaceholder: "z. B. Home Assistant",
+    read: "Nur lesen",
+    write: "Lesen und ändern",
+    lastUsed: (d: string) => `zuletzt benutzt ${d}`,
+    neverUsed: "noch nicht benutzt",
+    revoke: "Widerrufen",
+    created: "Token erstellt",
+    copyOnce: "Kopiere den Token jetzt. Er wird nur dieses eine Mal angezeigt.",
+    baseUrl: (url: string) => `API-Adresse: ${url}`,
+    copy: "Token kopieren",
+    tooMany: "Du hast schon 20 Tokens. Widerrufe zuerst einen.",
+  },
+  push: {
+    title: (n: number) => (n === 1 ? "1 Lebensmittel sollte bald gegessen werden" : `${n} Lebensmittel sollten bald gegessen werden`),
   },
   errorPage: {
     title: "Ups, da ist etwas schiefgelaufen.",

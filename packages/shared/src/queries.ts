@@ -17,6 +17,7 @@ export const queries = defineQueries({
         .related("drawers", (d) => d.orderBy("sortOrder", "asc"))
         .related("items", (i) => i.orderBy("frozenAt", "asc").orderBy("createdAt", "asc"))
         .related("suggestions", (s) => s.orderBy("useCount", "desc"))
+        .related("barcodes")
         .related("members", (m) => m.related("user").orderBy("joinedAt", "asc"))
         .one(),
     ),
@@ -30,6 +31,12 @@ export const queries = defineQueries({
           f.whereExists("members", (m) => m.where("userId", ctx.userID).where("role", "owner")),
         )
         .orderBy("createdAt", "desc"),
+    ),
+  },
+  // The user's own active API tokens (never the token hash, which isn't synced at all).
+  apiTokens: {
+    mine: defineQuery(({ ctx }) =>
+      zql.apiToken.where("userId", ctx.userID).where("revokedAt", "IS", null).orderBy("createdAt", "desc"),
     ),
   },
   items: {

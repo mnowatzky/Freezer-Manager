@@ -2,7 +2,9 @@ import { defineMutator, defineMutators, type Transaction } from "@rocicorp/zero"
 import { z } from "zod";
 import "./context";
 import type { ZeroContext } from "./context";
-import { MAX_DRAWERS, suggestionId, UNITS } from "./domain";
+import { barcodeId, defaultBestBefore, MAX_DRAWERS, monthsBetween, shelfLifeMonths, suggestionId } from "./domain";
+import { barcode as barcodeField, category as categoryField, containerNumber, date, id, name, notes, quantity, unit } from "./fields";
+import { drawerKey, importArgs, planDrawers } from "./import";
 import { appError, LOCALES, messages } from "./i18n";
 import { zql } from "./zero-schema.gen";
 
@@ -33,24 +35,46 @@ async function requireDrawerInFreezer(tx: Tx, drawerId: string, freezerId: strin
   if (!drawer || drawer.freezerId !== freezerId) throw appError("notFound");
 }
 
-async function requireContainerFree(tx: Tx, freezerId: string, containerNumber: number, exceptItemId?: string) {
-  const occupant = await tx.run(
-    zql.item.where("freezerId", freezerId).where("containerNumber", containerNumber).one(),
-  );
-  if (occupant && occupant.id !== exceptItemId) throw appError("containerInUse", containerNumber);
+async function requireContainerFree(tx: Tx, freezerId: string, number: number, exceptItemId?: string) {
+  const occupant = await tx.run(zql.item.where("freezerId", freezerId).where("containerNumber", number).one());
+  if (occupant && occupant.id !== exceptItemId) throw appError("containerInUse", number);
 }
 
-const id = z.string().min(1).max(64);
-const name = z.string().trim().min(1).max(100);
-const unit = z.enum(UNITS);
-const quantity = z.number().positive().max(100_000);
-const containerNumber = z.number().int().positive().max(1_000_000).nullable();
+// Optional so that app versions from before categories existed keep working; undefined = unchanged.
+const categoryArg = categoryField.optional();
+// Same for best-before dates; on add, undefined = the food's default.
+const bestBeforeArg = date.nullable().optional();
+
+type Suggestion = { shelfLifeMonths: number | null; lastCategory: string | null } | undefined;
+
+/**
+ * A best-before date that differs from the food's default was picked by hand: remember the storage
+ * time it implies, so the next item of that food gets the same. Returns the months to store.
+ */
+function chosenShelfLife(
+  suggestion: Suggestion,
+  category: string | null | undefined,
+  frozenAt: number,
+  bestBefore: number | null,
+): number | null {
+  const remembered = suggestion?.shelfLifeMonths ?? null;
+  if (bestBefore === null || bestBefore <= frozenAt) return remembered;
+  const fallback = defaultBestBefore(frozenAt, shelfLifeMonths(remembered, category));
+  return bestBefore === fallback ? remembered : monthsBetween(frozenAt, bestBefore);
+}
 
 export const mutators = defineMutators({
   freezer: {
     create: defineMutator(
       // locale: language of the default drawer names (optional for clients from before it existed).
-      z.object({ id, name, drawerIds: z.array(id).min(1).max(MAX_DRAWERS), locale: z.enum(LOCALES).optional() }),
+      // drawerNames: names instead of the defaults (importing an export as a new freezer).
+      z.object({
+        id,
+        name,
+        drawerIds: z.array(id).min(1).max(MAX_DRAWERS),
+        locale: z.enum(LOCALES).optional(),
+        drawerNames: z.array(name).max(MAX_DRAWERS).optional(),
+      }),
       async ({ tx, ctx, args }) => {
         const now = Date.now();
         await tx.mutate.freezer.insert({ id: args.id, name: args.name, ownerId: ctx.userID, createdAt: now });
@@ -61,7 +85,12 @@ export const mutators = defineMutators({
           joinedAt: now,
         });
         for (const [i, drawerId] of args.drawerIds.entries()) {
-          await tx.mutate.drawer.insert({ id: drawerId, freezerId: args.id, name: messages[args.locale ?? "de"].drawerName(i + 1), sortOrder: i });
+          await tx.mutate.drawer.insert({
+            id: drawerId,
+            freezerId: args.id,
+            name: args.drawerNames?.[i] ?? messages[args.locale ?? "de"].drawerName(i + 1),
+            sortOrder: i,
+          });
         }
       },
     ),
@@ -72,11 +101,95 @@ export const mutators = defineMutators({
       for (const row of await tx.run(zql.item.where("freezerId", f))) await tx.mutate.item.delete({ id: row.id });
       for (const row of await tx.run(zql.foodSuggestion.where("freezerId", f)))
         await tx.mutate.foodSuggestion.delete({ id: row.id });
+      for (const row of await tx.run(zql.barcode.where("freezerId", f))) await tx.mutate.barcode.delete({ id: row.id });
       for (const row of await tx.run(zql.invite.where("freezerId", f))) await tx.mutate.invite.delete({ id: row.id });
       for (const row of await tx.run(zql.drawer.where("freezerId", f))) await tx.mutate.drawer.delete({ id: row.id });
       for (const row of await tx.run(zql.freezerMember.where("freezerId", f)))
         await tx.mutate.freezerMember.delete({ freezerId: f, userId: row.userId });
       await tx.mutate.freezer.delete({ id: f });
+    }),
+
+    // Import from an export file or CSV (see import.ts), allowed for every member. Drawers are matched
+    // by name and created if missing (up to MAX_DRAWERS; items for drawers beyond that go to the first
+    // drawer). Container numbers that are already taken are dropped. At most MAX_IMPORT_ITEMS rows per
+    // call; the client splits larger files.
+    import: defineMutator(importArgs, async ({ tx, ctx, args }) => {
+      const f = args.freezerId;
+      await requireRole(tx, ctx, f);
+
+      const drawers = await tx.run(zql.drawer.where("freezerId", f).orderBy("sortOrder", "asc"));
+      const drawerIds = new Map(drawers.map((d) => [drawerKey(d.name), d.id]));
+      let sortOrder = Math.max(-1, ...drawers.map((d) => d.sortOrder));
+      for (const [i, drawerName] of planDrawers(drawers.map((d) => d.name), args.drawers).create.entries()) {
+        const drawerId = args.newDrawerIds[i];
+        if (!drawerId) break;
+        await tx.mutate.drawer.insert({ id: drawerId, freezerId: f, name: drawerName, sortOrder: ++sortOrder });
+        drawerIds.set(drawerKey(drawerName), drawerId);
+      }
+      const firstDrawer = drawers[0]?.id ?? [...drawerIds.values()][0];
+      if (!firstDrawer && args.items.length) throw appError("notFound");
+
+      const taken = new Set((await tx.run(zql.item.where("freezerId", f))).flatMap((i) => (i.containerNumber === null ? [] : [i.containerNumber])));
+      const suggestions = new Map((await tx.run(zql.foodSuggestion.where("freezerId", f))).map((s) => [s.id, s]));
+      const now = Date.now();
+
+      for (const item of args.items) {
+        let container = item.containerNumber;
+        if (container !== null) {
+          if (taken.has(container)) container = null;
+          else taken.add(container);
+        }
+        const sid = suggestionId(f, item.name);
+        const known = suggestions.get(sid);
+        await tx.mutate.item.insert({
+          id: item.id,
+          freezerId: f,
+          drawerId: drawerIds.get(drawerKey(item.drawer)) ?? firstDrawer!,
+          containerNumber: container,
+          name: item.name,
+          quantity: item.quantity,
+          unit: item.unit,
+          category: item.category,
+          frozenAt: item.frozenAt,
+          bestBefore:
+            item.bestBefore !== undefined
+              ? item.bestBefore
+              : defaultBestBefore(item.frozenAt, shelfLifeMonths(known?.shelfLifeMonths, item.category)),
+          notes: item.notes || null,
+          createdBy: ctx.userID,
+          createdAt: now,
+        });
+        // A CSV has no suggestions of its own: its food names become suggestions, as when freezing.
+        if (!args.suggestions) {
+          const next = {
+            id: sid,
+            freezerId: f,
+            name: known?.name ?? item.name,
+            lastUnit: item.unit,
+            lastCategory: item.category ?? known?.lastCategory ?? null,
+            shelfLifeMonths: known?.shelfLifeMonths ?? null,
+            useCount: (known?.useCount ?? 0) + 1,
+          };
+          await tx.mutate.foodSuggestion.upsert(next);
+          suggestions.set(sid, next);
+        }
+      }
+
+      for (const s of args.suggestions ?? []) {
+        const sid = suggestionId(f, s.name);
+        const known = suggestions.get(sid);
+        await tx.mutate.foodSuggestion.upsert({
+          id: sid,
+          freezerId: f,
+          name: known?.name ?? s.name,
+          lastUnit: s.lastUnit,
+          lastCategory: s.lastCategory,
+          shelfLifeMonths: s.shelfLifeMonths ?? known?.shelfLifeMonths ?? null,
+          useCount: Math.max(known?.useCount ?? 0, s.useCount),
+        });
+      }
+      for (const b of args.barcodes ?? [])
+        await tx.mutate.barcode.upsert({ id: barcodeId(f, b.code), freezerId: f, ...b });
     }),
   },
 
@@ -115,30 +228,56 @@ export const mutators = defineMutators({
         name,
         quantity,
         unit,
-        frozenAt: z.number().int(),
-        notes: z.string().trim().max(500).nullable(),
+        frozenAt: date,
+        notes,
+        category: categoryArg,
+        bestBefore: bestBeforeArg,
+        // Scanned product code: remembered with the name, quantity, unit and category this item was saved with.
+        barcode: barcodeField.optional(),
       }),
       async ({ tx, ctx, args }) => {
         await requireRole(tx, ctx, args.freezerId);
         await requireDrawerInFreezer(tx, args.drawerId, args.freezerId);
         if (args.containerNumber !== null) await requireContainerFree(tx, args.freezerId, args.containerNumber);
 
+        const sid = suggestionId(args.freezerId, args.name);
+        const existing = await tx.run(zql.foodSuggestion.where("id", sid).one());
+        const category = args.category ?? null;
+        const best =
+          args.bestBefore !== undefined
+            ? args.bestBefore
+            : defaultBestBefore(args.frozenAt, shelfLifeMonths(existing?.shelfLifeMonths, category));
+
+        const { barcode, ...fields } = args;
         await tx.mutate.item.insert({
-          ...args,
+          ...fields,
           notes: args.notes || null,
+          category,
+          bestBefore: best,
           createdBy: ctx.userID,
           createdAt: Date.now(),
         });
 
-        const sid = suggestionId(args.freezerId, args.name);
-        const existing = await tx.run(zql.foodSuggestion.where("id", sid).one());
         await tx.mutate.foodSuggestion.upsert({
           id: sid,
           freezerId: args.freezerId,
           name: args.name,
           lastUnit: args.unit,
+          lastCategory: args.category === undefined ? (existing?.lastCategory ?? null) : args.category,
+          shelfLifeMonths: chosenShelfLife(existing, category, args.frozenAt, best),
           useCount: (existing?.useCount ?? 0) + 1,
         });
+
+        if (barcode)
+          await tx.mutate.barcode.upsert({
+            id: barcodeId(args.freezerId, barcode),
+            freezerId: args.freezerId,
+            code: barcode,
+            name: args.name,
+            quantity: args.quantity,
+            unit: args.unit,
+            category,
+          });
       },
     ),
 
@@ -150,8 +289,10 @@ export const mutators = defineMutators({
         name,
         quantity,
         unit,
-        frozenAt: z.number().int(),
-        notes: z.string().trim().max(500).nullable(),
+        frozenAt: date,
+        notes,
+        category: categoryArg,
+        bestBefore: bestBeforeArg,
       }),
       async ({ tx, ctx, args }) => {
         const item = await requireItem(tx, ctx, args.id);
@@ -159,6 +300,12 @@ export const mutators = defineMutators({
         if (args.containerNumber !== null)
           await requireContainerFree(tx, item.freezerId, args.containerNumber, item.id);
         await tx.mutate.item.update({ ...args, notes: args.notes || null });
+
+        if (args.bestBefore !== undefined) {
+          const s = await tx.run(zql.foodSuggestion.where("id", suggestionId(item.freezerId, args.name)).one());
+          const months = chosenShelfLife(s, args.category === undefined ? item.category : args.category, args.frozenAt, args.bestBefore);
+          if (s && months !== s.shelfLifeMonths) await tx.mutate.foodSuggestion.update({ id: s.id, shelfLifeMonths: months });
+        }
       },
     ),
 
@@ -189,9 +336,11 @@ export const mutators = defineMutators({
           containerNumber,
           name,
           unit,
-          frozenAt: z.number().int(),
-          notes: z.string().trim().max(500).nullable(),
-          createdAt: z.number().int(),
+          frozenAt: date,
+          notes,
+          category: categoryArg,
+          bestBefore: bestBeforeArg,
+          createdAt: date,
         }),
         amount: quantity,
       }),
@@ -221,10 +370,22 @@ export const mutators = defineMutators({
           containerNumber: container,
           quantity: amount,
           notes: snapshot.notes || null,
+          category: snapshot.category ?? null,
+          bestBefore: snapshot.bestBefore ?? null,
           createdBy: ctx.userID,
         });
       },
     ),
+  },
+
+  // API tokens are created via the REST API (the token is generated and hashed on the server and
+  // shown once). Revoking is a plain update, only by the token's owner.
+  apiToken: {
+    revoke: defineMutator(z.object({ id }), async ({ tx, ctx, args }) => {
+      const token = await tx.run(zql.apiToken.where("id", args.id).one());
+      if (!token || token.userId !== ctx.userID) throw appError("notFound");
+      await tx.mutate.apiToken.update({ id: token.id, revokedAt: Date.now() });
+    }),
   },
 
   suggestion: {
