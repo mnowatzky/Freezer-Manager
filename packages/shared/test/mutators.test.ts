@@ -257,6 +257,35 @@ describe("best-before dates", () => {
   });
 });
 
+describe("barcodes", () => {
+  const barcodes = () => zdb.run(zql.barcode.where("freezerId", "f1"));
+
+  it("remembers what a scanned product was saved as, and keeps corrections", async () => {
+    await as("alice", (m) => call(m.item.add(addArgs({ containerNumber: null, barcode: "4001234567890", name: "Erbsen", unit: "bag", category: "vegetables" }))));
+    expect(await barcodes()).toEqual([
+      { id: "f1:4001234567890", freezerId: "f1", code: "4001234567890", name: "Erbsen", quantity: 5, unit: "bag", category: "vegetables" },
+    ]);
+    await as("bob", (m) => call(m.item.add(addArgs({ id: "i2", containerNumber: null, barcode: "4001234567890", name: "Junge Erbsen", quantity: 750, unit: "g", category: "vegetables" }))));
+    expect(await barcodes()).toMatchObject([{ name: "Junge Erbsen", quantity: 750, unit: "g" }]);
+  });
+
+  it("rejects codes that aren't 8–14 digits", async () => {
+    for (const barcode of ["1234567", "123456789012345", "40012345abc"])
+      await expect(as("alice", (m) => call(m.item.add(addArgs({ containerNumber: null, barcode }))))).rejects.toThrow();
+    expect(await barcodes()).toHaveLength(0);
+  });
+
+  it("are part of the freezer detail and deleted with the freezer", async () => {
+    await as("alice", (m) => call(m.item.add(addArgs({ containerNumber: null, barcode: "12345678" }))));
+    const detail = (await zdb.run(
+      mustGetQuery(queries, "freezers.detail").fn({ args: { freezerId: "f1" }, ctx: { userID: "bob" } }) as Parameters<typeof zdb.run>[0],
+    )) as { barcodes: unknown[] };
+    expect(detail.barcodes).toHaveLength(1);
+    await as("alice", (m) => call(m.freezer.delete({ freezerId: "f1" })));
+    expect(await barcodes()).toHaveLength(0);
+  });
+});
+
 describe("undo (item.putBack)", () => {
   const snapshot = (over: Record<string, unknown> = {}) => {
     const { quantity: _q, ...rest } = addArgs(over);

@@ -75,6 +75,12 @@ export const en: Messages = {
     edit: "Edit",
     removeSuggestion: "Remove suggestion",
     category: "Category",
+    scanBarcode: "Scan barcode",
+    barcode: (code: string) => `Barcode ${code}`,
+    offSource: "Data from Open Food Facts",
+    productNotFound: "Product not found. Enter its name; the barcode will be saved.",
+    lookupLimited: "Too many product lookups. Please wait a minute.",
+    lookupFailed: "Product lookup isn't available right now.",
     bestBefore: "Best before",
     bestBeforeDefault: (months: number) => `${months} ${months === 1 ? "month" : "months"} after freezing`,
     bestBeforeRelative: (days: number) => {
@@ -128,6 +134,8 @@ export const en: Messages = {
     open: "Open",
     noCamera: "Camera not available.",
     invalid: "No container code found.",
+    barcodeManual: "Or enter a barcode",
+    invalidBarcode: "That's not a barcode (8 to 14 digits).",
   },
   settings: {
     title: "Settings",

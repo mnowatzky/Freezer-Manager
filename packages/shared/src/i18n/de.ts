@@ -87,6 +87,12 @@ export const de = {
     edit: "Bearbeiten",
     removeSuggestion: "Vorschlag entfernen",
     category: "Kategorie",
+    scanBarcode: "Barcode scannen",
+    barcode: (code: string) => `Barcode ${code}`,
+    offSource: "Daten von Open Food Facts",
+    productNotFound: "Produkt nicht gefunden. Gib den Namen ein, der Barcode wird gespeichert.",
+    lookupLimited: "Zu viele Produktabfragen. Bitte warte eine Minute.",
+    lookupFailed: "Die Produktsuche ist gerade nicht erreichbar.",
     bestBefore: "Haltbar bis",
     bestBeforeDefault: (months: number) => `${months} ${months === 1 ? "Monat" : "Monate"} ab Einfrieren`,
     // Days until the best-before date (negative: past it).
@@ -133,6 +139,8 @@ export const de = {
     open: "Öffnen",
     noCamera: "Kamera nicht verfügbar.",
     invalid: "Kein Behälter-Code erkannt.",
+    barcodeManual: "Oder Barcode eingeben",
+    invalidBarcode: "Das ist kein Barcode (8 bis 14 Ziffern).",
   },
   settings: {
     title: "Einstellungen",

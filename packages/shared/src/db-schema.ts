@@ -172,6 +172,25 @@ export const foodSuggestion = pgTable(
   (t) => [index("food_suggestion_freezer_idx").on(t.freezerId)],
 );
 
+// The freezer's own barcode memory: what a scanned product was saved as (name, quantity, unit, category),
+// so the next scan of it needs no Open Food Facts lookup and keeps the household's corrections.
+// id = `${freezerId}:${code}`.
+export const barcode = pgTable(
+  "barcode",
+  {
+    id: text("id").primaryKey(),
+    freezerId: text("freezer_id")
+      .notNull()
+      .references(() => freezer.id, { onDelete: "cascade" }),
+    code: text("code").notNull(),
+    name: text("name").notNull(),
+    quantity: doublePrecision("quantity").notNull(),
+    unit: text("unit").notNull(),
+    category: text("category"),
+  },
+  (t) => [index("barcode_freezer_idx").on(t.freezerId)],
+);
+
 export const invite = pgTable(
   "invite",
   {
@@ -241,6 +260,7 @@ export const freezerRelations = relations(freezer, ({ many }) => ({
   drawers: many(drawer),
   items: many(item),
   suggestions: many(foodSuggestion),
+  barcodes: many(barcode),
   invites: many(invite),
 }));
 
@@ -261,6 +281,10 @@ export const itemRelations = relations(item, ({ one }) => ({
 
 export const foodSuggestionRelations = relations(foodSuggestion, ({ one }) => ({
   freezer: one(freezer, { fields: [foodSuggestion.freezerId], references: [freezer.id] }),
+}));
+
+export const barcodeRelations = relations(barcode, ({ one }) => ({
+  freezer: one(freezer, { fields: [barcode.freezerId], references: [freezer.id] }),
 }));
 
 export const inviteRelations = relations(invite, ({ one }) => ({

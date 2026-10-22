@@ -1,7 +1,7 @@
 import "@freezer/shared/context";
 import { buildInfo } from "@freezer/shared/build-info";
-import { INVITE_TTL_MS } from "@freezer/shared/domain";
-import { LOCALES } from "@freezer/shared/i18n";
+import { BARCODE_PATTERN, INVITE_TTL_MS } from "@freezer/shared/domain";
+import { LOCALES, pickLocale } from "@freezer/shared/i18n";
 import { mutators } from "@freezer/shared/mutators";
 import { queries } from "@freezer/shared/queries";
 import { schema as zeroSchema } from "@freezer/shared/zero-schema";
@@ -19,6 +19,7 @@ import { db, schema, zeroDb } from "./db";
 import { env } from "./env";
 import { errorFields, log } from "./log";
 import { createSignupLink } from "./pocket-id";
+import { LookupFailed, lookupProduct, toProduct } from "./products";
 import { clientIp, rateLimiter } from "./rate-limit";
 import { secretsEqual } from "./secrets";
 
@@ -243,4 +244,31 @@ app.delete("/api/push/subscriptions", bodyLimit({ maxSize: 4 * 1024 }), async (c
     .delete(schema.pushSubscription)
     .where(and(eq(schema.pushSubscription.endpoint, body.endpoint), eq(schema.pushSubscription.userId, userID)));
   return c.body(null, 204);
+});
+
+// ---------------------------------------------------------------------------
+// Barcode lookup via Open Food Facts (see products.ts). OFF allows about 15 product reads per
+// minute per IP, and all users share the server's IP, so upstream calls are rate-limited per
+// user and in total; cached answers don't count.
+// ---------------------------------------------------------------------------
+
+const productUserLimit = rateLimiter(10, 60_000);
+const productGlobalLimit = rateLimiter(15, 60_000);
+
+app.get("/api/products/:code", async (c) => {
+  const userID = await sessionUserId(c);
+  if (!userID) return c.json({ error: "unauthorized" }, 401);
+  if (!env.openFoodFacts.enabled) return c.json({ error: "disabled" }, 404);
+  const code = c.req.param("code");
+  if (!BARCODE_PATTERN.test(code)) return c.json({ error: "invalid" }, 400);
+  const locale = pickLocale([c.req.query("lang") ?? ""]);
+  try {
+    const product = await lookupProduct(code, () => productUserLimit.allow(userID) && productGlobalLimit.allow("all"));
+    if (product === "rate_limited") return c.json({ error: "rate_limited" }, 429);
+    if (!product) return c.json({ found: false });
+    return c.json({ found: true, ...toProduct(product, locale) });
+  } catch (err) {
+    if (err instanceof LookupFailed) return c.json({ error: "unavailable" }, 502);
+    throw err;
+  }
 });

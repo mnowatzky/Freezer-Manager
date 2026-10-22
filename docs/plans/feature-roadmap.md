@@ -21,7 +21,7 @@ Implementation plan for the next features of Freezer Manager. Each feature (A–
 | B | Categories | — | `item.category`, `food_suggestion.last_category` | S–M | done |
 | C | Eat soon (best-before dates) | B | `item.best_before`, `food_suggestion.shelf_life_months` | M | done |
 | D | Push notifications one week before best-before | C | `push_subscription`, `expiry_notice` (not synced) | L | done |
-| E | Barcode scanning with Open Food Facts | B | `barcode` table (synced) | M | todo |
+| E | Barcode scanning with Open Food Facts | B | `barcode` table (synced) | M | done |
 | F | Export / import | B, C | none | M | todo |
 | G | API tokens + Home Assistant | C | `api_token` (synced without hash column) | M–L | todo |
 

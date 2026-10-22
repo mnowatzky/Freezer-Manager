@@ -13,6 +13,7 @@ export default drizzleZeroConfig(drizzleSchema, {
     drawer: true,
     item: true,
     foodSuggestion: true,
+    barcode: true,
     invite: true,
     pushSubscription: false,
     expiryNotice: false,

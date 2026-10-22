@@ -7,6 +7,7 @@ A self-hosted, realtime, multi-user PWA that tracks what's in your freezer: whic
 - **Passkey login** through [Pocket ID](https://pocket-id.org/), with no passwords to manage
 - **Invites:** share a freezer through a link; people without an account can sign up through it
 - **Undo** for taking out and deleting, **categories**, and **best-before dates** with an "Eat soon" list
+- **Barcode scanning:** scan a product to fill in its name and category, from the freezer's own memory or [Open Food Facts](https://world.openfoodfacts.org/)
 - **Push notifications** a week before an item's best-before date and on the day itself (optional)
 - **Installable PWA** for Android, iOS and desktop, built on Material 3 Expressive
 - **English and German:** the app follows the browser's language and falls back to English
@@ -100,6 +101,8 @@ Settings worth knowing:
   npx web-push generate-vapid-keys
   ```
   The notifications go out once a day after `NOTIFY_HOUR` (default 9) in the time zone `TZ` (default UTC, e.g. `Europe/Berlin`). Each person turns them on per device under **Settings**. On iPhone and iPad this needs the installed app (iOS 16.4 or later). Without the keys, the switch is hidden. If you change the keys, devices have to turn notifications on again.
+
+- **Barcode lookups:** a scanned product the freezer doesn't know yet is looked up on Open Food Facts. The API does that on the browser's behalf, so OFF never sees your users' IP addresses. Set `OFF_CONTACT` to an email address or URL; OFF asks API clients to identify themselves. The API caches answers for a day and allows 10 lookups per minute per user and 15 in total, which keeps the server within OFF's limits. `OFF_ENABLED=false` turns the lookups off; scanning then only uses the freezer's own barcode memory.
 
 Keep a copy of `.env` somewhere safe. If you lose `BETTER_AUTH_SECRET`, all sessions become invalid.
 
@@ -225,6 +228,11 @@ If you lose `POCKET_ID_ENCRYPTION_KEY`, the instance becomes unusable.
    - by entering the `REGISTRATION_CODE` on the login page, if one is set. They then create their own freezer.
 5. **Invites** need work that can only happen on the server: random tokens, and a Pocket ID signup link created through the Pocket ID admin API. They therefore use small REST endpoints. The invite rows themselves sync through Zero.
 6. **CSRF:** the API rejects state-changing requests to its own endpoints unless they come from the web app's origin. Better Auth checks `/api/auth` itself, and the zero-cache API key protects `/api/zero`.
+
+### Barcodes
+
+- **Lookup order:** the freezer's own `barcode` table (synced, so no network round trip), then `GET /api/products/:code`, otherwise the user types the name. Saving an item with a scanned code stores the name, unit and category it was actually saved with, so corrections stick for the whole household.
+- **`/api/products/:code`** (`apps/api/src/products.ts`) asks Open Food Facts with a custom User-Agent and a 5-second timeout, maps the product to name, brand, package size and category (from `categories_tags`), and caches answers, including "not found", for 24 hours in memory. Product data from Open Food Facts is licensed under the [ODbL](https://opendatacommons.org/licenses/odbl/1-0/); the form says so when it used it.
 
 ### Push notifications
 

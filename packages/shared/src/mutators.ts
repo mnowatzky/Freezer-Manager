@@ -2,7 +2,17 @@ import { defineMutator, defineMutators, type Transaction } from "@rocicorp/zero"
 import { z } from "zod";
 import "./context";
 import type { ZeroContext } from "./context";
-import { CATEGORY_IDS, defaultBestBefore, MAX_DRAWERS, monthsBetween, shelfLifeMonths, suggestionId, UNITS } from "./domain";
+import {
+  BARCODE_PATTERN,
+  barcodeId,
+  CATEGORY_IDS,
+  defaultBestBefore,
+  MAX_DRAWERS,
+  monthsBetween,
+  shelfLifeMonths,
+  suggestionId,
+  UNITS,
+} from "./domain";
 import { appError, LOCALES, messages } from "./i18n";
 import { zql } from "./zero-schema.gen";
 
@@ -94,6 +104,7 @@ export const mutators = defineMutators({
       for (const row of await tx.run(zql.item.where("freezerId", f))) await tx.mutate.item.delete({ id: row.id });
       for (const row of await tx.run(zql.foodSuggestion.where("freezerId", f)))
         await tx.mutate.foodSuggestion.delete({ id: row.id });
+      for (const row of await tx.run(zql.barcode.where("freezerId", f))) await tx.mutate.barcode.delete({ id: row.id });
       for (const row of await tx.run(zql.invite.where("freezerId", f))) await tx.mutate.invite.delete({ id: row.id });
       for (const row of await tx.run(zql.drawer.where("freezerId", f))) await tx.mutate.drawer.delete({ id: row.id });
       for (const row of await tx.run(zql.freezerMember.where("freezerId", f)))
@@ -141,6 +152,8 @@ export const mutators = defineMutators({
         notes: z.string().trim().max(500).nullable(),
         category: categoryArg,
         bestBefore: bestBeforeArg,
+        // Scanned product code: remembered with the name, quantity, unit and category this item was saved with.
+        barcode: z.string().regex(BARCODE_PATTERN).optional(),
       }),
       async ({ tx, ctx, args }) => {
         await requireRole(tx, ctx, args.freezerId);
@@ -155,8 +168,9 @@ export const mutators = defineMutators({
             ? args.bestBefore
             : defaultBestBefore(args.frozenAt, shelfLifeMonths(existing?.shelfLifeMonths, category));
 
+        const { barcode, ...fields } = args;
         await tx.mutate.item.insert({
-          ...args,
+          ...fields,
           notes: args.notes || null,
           category,
           bestBefore: best,
@@ -173,6 +187,17 @@ export const mutators = defineMutators({
           shelfLifeMonths: chosenShelfLife(existing, category, args.frozenAt, best),
           useCount: (existing?.useCount ?? 0) + 1,
         });
+
+        if (barcode)
+          await tx.mutate.barcode.upsert({
+            id: barcodeId(args.freezerId, barcode),
+            freezerId: args.freezerId,
+            code: barcode,
+            name: args.name,
+            quantity: args.quantity,
+            unit: args.unit,
+            category,
+          });
       },
     ),
 

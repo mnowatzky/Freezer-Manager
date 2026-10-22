@@ -77,6 +77,9 @@ services:
       # The daily notifications go out after this hour, in the time zone TZ.
       NOTIFY_HOUR: ${NOTIFY_HOUR:-9}
       TZ: ${TZ:-UTC}
+      # Barcode lookups via Open Food Facts (OFF_ENABLED=false turns them off).
+      OFF_ENABLED: ${OFF_ENABLED:-true}
+      OFF_CONTACT: ${OFF_CONTACT:-}
     # Healthcheck: defined in apps/api/Dockerfile (GET /api/health).
     networks:
       internal:

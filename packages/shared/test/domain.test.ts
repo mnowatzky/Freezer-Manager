@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addMonths, DAY_MS, defaultBestBefore, freshness, monthsBetween, shelfLifeMonths } from "../src/domain";
+import { addMonths, DAY_MS, defaultBestBefore, freshness, monthsBetween, parsePackageSize, shelfLifeMonths } from "../src/domain";
 
 const d = (iso: string) => Date.parse(`${iso}T00:00:00Z`);
 
@@ -58,5 +58,20 @@ describe("freshness", () => {
 
   it("is expired once the date has passed", () => {
     expect(freshness(today - DAY_MS, today)).toBe("expired");
+  });
+});
+
+describe("parsePackageSize", () => {
+  it("reads weights and volumes", () => {
+    expect(parsePackageSize("750 g")).toEqual({ quantity: 750, unit: "g" });
+    expect(parsePackageSize("1,5 l")).toEqual({ quantity: 1.5, unit: "l" });
+    expect(parsePackageSize("500ml")).toEqual({ quantity: 500, unit: "ml" });
+    expect(parsePackageSize("33 cl")).toEqual({ quantity: 330, unit: "ml" });
+    expect(parsePackageSize("2 x 250 g")).toEqual({ quantity: 500, unit: "g" });
+    expect(parsePackageSize("1 kg e")).toEqual({ quantity: 1, unit: "kg" });
+  });
+
+  it("ignores anything else", () => {
+    for (const text of ["10 Stück", "", null, undefined, "approx. 400 g", "0 g"]) expect(parsePackageSize(text)).toBeNull();
   });
 });

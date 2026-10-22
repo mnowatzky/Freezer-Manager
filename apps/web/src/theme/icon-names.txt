@@ -3,6 +3,8 @@ add
 arrow_back
 arrow_forward
 bakery_dining
+barcode
+barcode_scanner
 calendar_month
 category
 check

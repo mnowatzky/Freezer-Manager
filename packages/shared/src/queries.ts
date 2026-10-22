@@ -17,6 +17,7 @@ export const queries = defineQueries({
         .related("drawers", (d) => d.orderBy("sortOrder", "asc"))
         .related("items", (i) => i.orderBy("frozenAt", "asc").orderBy("createdAt", "asc"))
         .related("suggestions", (s) => s.orderBy("useCount", "desc"))
+        .related("barcodes")
         .related("members", (m) => m.related("user").orderBy("joinedAt", "asc"))
         .one(),
     ),

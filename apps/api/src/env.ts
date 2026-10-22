@@ -33,7 +33,27 @@ export const env = {
   vapid: vapidConfig(),
   /** Hour of the day (container time zone, TZ) after which the daily best-before notifications go out. */
   notifyHour: Number(process.env.NOTIFY_HOUR || 9),
+  /** Barcode lookups via Open Food Facts (proxied, see products.ts). */
+  openFoodFacts: openFoodFactsConfig(),
 };
+
+function openFoodFactsConfig() {
+  // Credentials in the URL (staging: https://off:off@world.openfoodfacts.net) become a Basic auth header,
+  // because fetch() refuses URLs with credentials.
+  const url = new URL(process.env.OFF_BASE_URL || "https://world.openfoodfacts.org");
+  const authorization = url.username
+    ? `Basic ${Buffer.from(`${decodeURIComponent(url.username)}:${decodeURIComponent(url.password)}`).toString("base64")}`
+    : undefined;
+  url.username = "";
+  url.password = "";
+  return {
+    enabled: process.env.OFF_ENABLED !== "false",
+    baseUrl: url.origin,
+    authorization,
+    /** Contact in the User-Agent, as Open Food Facts asks of API clients. */
+    contact: process.env.OFF_CONTACT || "https://github.com/mnowatzky/Freezer-Manager",
+  };
+}
 
 function vapidConfig() {
   const publicKey = process.env.VAPID_PUBLIC_KEY?.trim();
