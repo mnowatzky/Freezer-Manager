@@ -4,7 +4,8 @@ import { useState } from "react";
 import { ageLabel, formatDate, quantityLabel } from "../lib/format";
 import { useHoldRepeat } from "../lib/hold-repeat";
 import type { FreezerDetail, ItemRow } from "../lib/freezer-data";
-import { mutators, useCanWrite, useMutate } from "../lib/zero";
+import { useRemoveWithUndo } from "../lib/undo";
+import { useCanWrite } from "../lib/zero";
 import { motionScheme } from "../theme/motion";
 import { ItemForm } from "./ItemDialog";
 import { Button, Icon, IconButton, Sheet } from "./m3";
@@ -86,7 +87,7 @@ function Details({ freezer, item, onMode }: { freezer: FreezerDetail; item: Item
 }
 
 function Take({ item, onDone, onBack }: { item: ItemRow; onDone: () => void; onBack: () => void }) {
-  const mutate = useMutate();
+  const { take: takeWithUndo } = useRemoveWithUndo();
   const canWrite = useCanWrite();
   const step = item.quantity >= 1 && Number.isInteger(item.quantity) ? 1 : item.quantity / 4;
   const [amount, setAmount] = useState(Math.min(step, item.quantity));
@@ -96,7 +97,7 @@ function Take({ item, onDone, onBack }: { item: ItemRow; onDone: () => void; onB
   const more = useHoldRepeat(() => setAmount((a) => clamp(a + step)));
 
   const take = async (value: number) => {
-    if (await mutate(mutators.item.take({ id: item.id, amount: value }))) onDone();
+    if (await takeWithUndo(item, value)) onDone();
   };
 
   return (

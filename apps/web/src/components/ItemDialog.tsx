@@ -5,6 +5,7 @@ import { useMemo, useRef, useState } from "react";
 import { recentDrawer, rememberDrawer } from "../lib/active-freezer";
 import { dateToInput, inputToDate } from "../lib/format";
 import type { FreezerDetail, ItemRow } from "../lib/freezer-data";
+import { useRemoveWithUndo } from "../lib/undo";
 import { mutators, useCanWrite, useMutate } from "../lib/zero";
 import { motionScheme } from "../theme/motion";
 import { Button, Icon, SelectField, Sheet, TextArea, TextField } from "./m3";
@@ -38,6 +39,7 @@ function SuggestionChip({ children, ...props }: React.ComponentProps<typeof moti
 
 export function ItemForm({ freezer, item, containerNumber = null, onDone }: FormProps) {
   const mutate = useMutate();
+  const { remove } = useRemoveWithUndo();
   const canWrite = useCanWrite();
   const defaultDrawer =
     item?.drawerId ?? freezer.drawers.find((d) => d.id === recentDrawer())?.id ?? freezer.drawers[0]?.id ?? "";
@@ -186,7 +188,19 @@ export function ItemForm({ freezer, item, containerNumber = null, onDone }: Form
       <TextField type="date" label={t.item.frozenAt} value={frozenAt} onChange={(e) => setFrozenAt(e.target.value)} />
       <TextArea label={`${t.item.notes} (${t.common.optional})`} rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
 
-      <div className="flex justify-end gap-2 pt-2">
+      <div className="flex flex-wrap justify-end gap-2 pt-2">
+        {item && (
+          <Button
+            type="button"
+            variant="error-text"
+            icon="delete"
+            className="mr-auto"
+            disabled={!canWrite}
+            onClick={() => void remove(item).then((ok) => ok && onDone())}
+          >
+            {t.common.delete}
+          </Button>
+        )}
         <Button type="button" variant="text" onClick={onDone}>
           {t.common.cancel}
         </Button>

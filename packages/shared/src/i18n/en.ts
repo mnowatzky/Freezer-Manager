@@ -6,6 +6,7 @@ export const en: Messages = {
     cancel: "Cancel",
     save: "Save",
     delete: "Delete",
+    undo: "Undo",
     close: "Close",
     back: "Back",
     loading: "Loading …",
@@ -70,6 +71,9 @@ export const en: Messages = {
     takeConfirm: "Take out",
     edit: "Edit",
     removeSuggestion: "Remove suggestion",
+    took: (name: string, qty: string) => `Took ${qty} of ${name}`,
+    deleted: (name: string) => `Deleted “${name}”`,
+    restoredWithoutContainer: (n: number) => `Put back without container ${n}, which is now in use.`,
     age: (days: number) =>
       days < 1 ? "today" : days < 31 ? `${days}d ago` : days < 365 ? `${Math.floor(days / 30)}mo ago` : `${Math.floor(days / 365)}y ago`,
   },

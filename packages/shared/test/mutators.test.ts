@@ -166,6 +166,75 @@ describe("items", () => {
   });
 });
 
+describe("undo (item.putBack)", () => {
+  const snapshot = (over: Record<string, unknown> = {}) => {
+    const { quantity: _q, ...rest } = addArgs(over);
+    return { ...rest, createdAt: 1_700_000_000_000 };
+  };
+  const putBack = (amount: number, over: Record<string, unknown> = {}) =>
+    call(mutators.item.putBack({ snapshot: snapshot(over), amount }));
+  const get = (id = "i1") => zdb.run(zql.item.where("id", id).one());
+
+  beforeEach(async () => {
+    await as("alice", (m) => call(m.item.add(addArgs())));
+  });
+
+  it("restores an item that was taken out completely", async () => {
+    await as("bob", (m) => call(m.item.take({ id: "i1", amount: 5 })));
+    await as("bob", () => putBack(5));
+    expect(await get()).toMatchObject({ name: "Frikadellen", quantity: 5, containerNumber: 5, drawerId: "d1" });
+  });
+
+  it("restores a deleted item", async () => {
+    await as("bob", (m) => call(m.item.delete({ id: "i1" })));
+    await as("bob", () => putBack(5));
+    expect((await get())?.quantity).toBe(5);
+  });
+
+  it("adds the amount back after a partial take", async () => {
+    await as("bob", (m) => call(m.item.take({ id: "i1", amount: 2 })));
+    await as("bob", () => putBack(2));
+    expect((await get())?.quantity).toBe(5);
+  });
+
+  it("stays correct when someone else took some in between", async () => {
+    await as("bob", (m) => call(m.item.take({ id: "i1", amount: 2 })));
+    await as("alice", (m) => call(m.item.take({ id: "i1", amount: 1 })));
+    await as("bob", () => putBack(2));
+    expect((await get())?.quantity).toBe(4);
+  });
+
+  it("drops the container number if it was reused meanwhile", async () => {
+    await as("bob", (m) => call(m.item.take({ id: "i1", amount: 5 })));
+    await as("alice", (m) => call(m.item.add(addArgs({ id: "i2", name: "Suppe" }))));
+    await as("bob", () => putBack(5));
+    expect(await get()).toMatchObject({ quantity: 5, containerNumber: null });
+    expect((await get("i2"))?.containerNumber).toBe(5);
+  });
+
+  it("sets createdBy from the session and leaves the suggestion's use count alone", async () => {
+    await as("alice", (m) => call(m.item.delete({ id: "i1" })));
+    await as("bob", () => putBack(5));
+    expect((await get())?.createdBy).toBe("bob");
+    expect((await zdb.run(zql.foodSuggestion.where("freezerId", "f1")))[0]?.useCount).toBe(1);
+  });
+
+  it("is members only", async () => {
+    await as("alice", (m) => call(m.item.delete({ id: "i1" })));
+    await expect(as("eve", () => putBack(5))).rejects.toThrow(/No access/);
+    await as("alice", () => putBack(5));
+    await as("alice", (m) => call(m.item.take({ id: "i1", amount: 1 })));
+    await expect(as("eve", () => putBack(1))).rejects.toThrow(/No access/);
+    expect(await get()).toBeDefined();
+  });
+
+  it("rejects a drawer from another freezer", async () => {
+    await as("eve", (m) => call(m.freezer.create({ id: "f2", name: "Eve", drawerIds: ["e1"] })));
+    await as("alice", (m) => call(m.item.delete({ id: "i1" })));
+    await expect(as("alice", () => putBack(5, { drawerId: "e1" }))).rejects.toThrow(/Not found/);
+  });
+});
+
 // Read permissions: the synced queries, evaluated server-side with a trusted ctx.userID.
 describe("queries", () => {
   const run = (name: string, args: unknown, userID: string) =>

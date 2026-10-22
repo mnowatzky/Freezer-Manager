@@ -3,7 +3,7 @@ import { forwardRef } from "react";
 import { motionScheme, PRESSED_RADIUS } from "../../theme/motion";
 import { Icon } from "./Icon";
 
-export type ButtonVariant = "filled" | "tonal" | "outlined" | "text" | "elevated" | "error";
+export type ButtonVariant = "filled" | "tonal" | "outlined" | "text" | "error-text" | "elevated" | "error";
 type Size = "s" | "m";
 
 const variantClass: Record<ButtonVariant, string> = {
@@ -11,6 +11,7 @@ const variantClass: Record<ButtonVariant, string> = {
   tonal: "bg-secondary-container text-on-secondary-container",
   outlined: "text-on-surface-variant ring-1 ring-inset ring-outline-variant",
   text: "text-primary",
+  "error-text": "text-error",
   elevated: "bg-surface-container-low text-primary shadow-sm",
   error: "bg-error text-on-error",
 };
