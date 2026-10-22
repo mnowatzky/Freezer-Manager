@@ -2,17 +2,9 @@ import { defineMutator, defineMutators, type Transaction } from "@rocicorp/zero"
 import { z } from "zod";
 import "./context";
 import type { ZeroContext } from "./context";
-import {
-  BARCODE_PATTERN,
-  barcodeId,
-  CATEGORY_IDS,
-  defaultBestBefore,
-  MAX_DRAWERS,
-  monthsBetween,
-  shelfLifeMonths,
-  suggestionId,
-  UNITS,
-} from "./domain";
+import { barcodeId, defaultBestBefore, MAX_DRAWERS, monthsBetween, shelfLifeMonths, suggestionId } from "./domain";
+import { barcode as barcodeField, category as categoryField, containerNumber, date, id, name, notes, quantity, unit } from "./fields";
+import { drawerKey, importArgs, planDrawers } from "./import";
 import { appError, LOCALES, messages } from "./i18n";
 import { zql } from "./zero-schema.gen";
 
@@ -43,22 +35,15 @@ async function requireDrawerInFreezer(tx: Tx, drawerId: string, freezerId: strin
   if (!drawer || drawer.freezerId !== freezerId) throw appError("notFound");
 }
 
-async function requireContainerFree(tx: Tx, freezerId: string, containerNumber: number, exceptItemId?: string) {
-  const occupant = await tx.run(
-    zql.item.where("freezerId", freezerId).where("containerNumber", containerNumber).one(),
-  );
-  if (occupant && occupant.id !== exceptItemId) throw appError("containerInUse", containerNumber);
+async function requireContainerFree(tx: Tx, freezerId: string, number: number, exceptItemId?: string) {
+  const occupant = await tx.run(zql.item.where("freezerId", freezerId).where("containerNumber", number).one());
+  if (occupant && occupant.id !== exceptItemId) throw appError("containerInUse", number);
 }
 
-const id = z.string().min(1).max(64);
-const name = z.string().trim().min(1).max(100);
-const unit = z.enum(UNITS);
-const quantity = z.number().positive().max(100_000);
-const containerNumber = z.number().int().positive().max(1_000_000).nullable();
 // Optional so that app versions from before categories existed keep working; undefined = unchanged.
-const categoryArg = z.enum(CATEGORY_IDS).nullable().optional();
+const categoryArg = categoryField.optional();
 // Same for best-before dates; on add, undefined = the food's default.
-const bestBeforeArg = z.number().int().nullable().optional();
+const bestBeforeArg = date.nullable().optional();
 
 type Suggestion = { shelfLifeMonths: number | null; lastCategory: string | null } | undefined;
 
@@ -82,7 +67,14 @@ export const mutators = defineMutators({
   freezer: {
     create: defineMutator(
       // locale: language of the default drawer names (optional for clients from before it existed).
-      z.object({ id, name, drawerIds: z.array(id).min(1).max(MAX_DRAWERS), locale: z.enum(LOCALES).optional() }),
+      // drawerNames: names instead of the defaults (importing an export as a new freezer).
+      z.object({
+        id,
+        name,
+        drawerIds: z.array(id).min(1).max(MAX_DRAWERS),
+        locale: z.enum(LOCALES).optional(),
+        drawerNames: z.array(name).max(MAX_DRAWERS).optional(),
+      }),
       async ({ tx, ctx, args }) => {
         const now = Date.now();
         await tx.mutate.freezer.insert({ id: args.id, name: args.name, ownerId: ctx.userID, createdAt: now });
@@ -93,7 +85,12 @@ export const mutators = defineMutators({
           joinedAt: now,
         });
         for (const [i, drawerId] of args.drawerIds.entries()) {
-          await tx.mutate.drawer.insert({ id: drawerId, freezerId: args.id, name: messages[args.locale ?? "de"].drawerName(i + 1), sortOrder: i });
+          await tx.mutate.drawer.insert({
+            id: drawerId,
+            freezerId: args.id,
+            name: args.drawerNames?.[i] ?? messages[args.locale ?? "de"].drawerName(i + 1),
+            sortOrder: i,
+          });
         }
       },
     ),
@@ -110,6 +107,89 @@ export const mutators = defineMutators({
       for (const row of await tx.run(zql.freezerMember.where("freezerId", f)))
         await tx.mutate.freezerMember.delete({ freezerId: f, userId: row.userId });
       await tx.mutate.freezer.delete({ id: f });
+    }),
+
+    // Import from an export file or CSV (see import.ts), allowed for every member. Drawers are matched
+    // by name and created if missing (up to MAX_DRAWERS; items for drawers beyond that go to the first
+    // drawer). Container numbers that are already taken are dropped. At most MAX_IMPORT_ITEMS rows per
+    // call; the client splits larger files.
+    import: defineMutator(importArgs, async ({ tx, ctx, args }) => {
+      const f = args.freezerId;
+      await requireRole(tx, ctx, f);
+
+      const drawers = await tx.run(zql.drawer.where("freezerId", f).orderBy("sortOrder", "asc"));
+      const drawerIds = new Map(drawers.map((d) => [drawerKey(d.name), d.id]));
+      let sortOrder = Math.max(-1, ...drawers.map((d) => d.sortOrder));
+      for (const [i, drawerName] of planDrawers(drawers.map((d) => d.name), args.drawers).create.entries()) {
+        const drawerId = args.newDrawerIds[i];
+        if (!drawerId) break;
+        await tx.mutate.drawer.insert({ id: drawerId, freezerId: f, name: drawerName, sortOrder: ++sortOrder });
+        drawerIds.set(drawerKey(drawerName), drawerId);
+      }
+      const firstDrawer = drawers[0]?.id ?? [...drawerIds.values()][0];
+      if (!firstDrawer && args.items.length) throw appError("notFound");
+
+      const taken = new Set((await tx.run(zql.item.where("freezerId", f))).flatMap((i) => (i.containerNumber === null ? [] : [i.containerNumber])));
+      const suggestions = new Map((await tx.run(zql.foodSuggestion.where("freezerId", f))).map((s) => [s.id, s]));
+      const now = Date.now();
+
+      for (const item of args.items) {
+        let container = item.containerNumber;
+        if (container !== null) {
+          if (taken.has(container)) container = null;
+          else taken.add(container);
+        }
+        const sid = suggestionId(f, item.name);
+        const known = suggestions.get(sid);
+        await tx.mutate.item.insert({
+          id: item.id,
+          freezerId: f,
+          drawerId: drawerIds.get(drawerKey(item.drawer)) ?? firstDrawer!,
+          containerNumber: container,
+          name: item.name,
+          quantity: item.quantity,
+          unit: item.unit,
+          category: item.category,
+          frozenAt: item.frozenAt,
+          bestBefore:
+            item.bestBefore !== undefined
+              ? item.bestBefore
+              : defaultBestBefore(item.frozenAt, shelfLifeMonths(known?.shelfLifeMonths, item.category)),
+          notes: item.notes || null,
+          createdBy: ctx.userID,
+          createdAt: now,
+        });
+        // A CSV has no suggestions of its own: its food names become suggestions, as when freezing.
+        if (!args.suggestions) {
+          const next = {
+            id: sid,
+            freezerId: f,
+            name: known?.name ?? item.name,
+            lastUnit: item.unit,
+            lastCategory: item.category ?? known?.lastCategory ?? null,
+            shelfLifeMonths: known?.shelfLifeMonths ?? null,
+            useCount: (known?.useCount ?? 0) + 1,
+          };
+          await tx.mutate.foodSuggestion.upsert(next);
+          suggestions.set(sid, next);
+        }
+      }
+
+      for (const s of args.suggestions ?? []) {
+        const sid = suggestionId(f, s.name);
+        const known = suggestions.get(sid);
+        await tx.mutate.foodSuggestion.upsert({
+          id: sid,
+          freezerId: f,
+          name: known?.name ?? s.name,
+          lastUnit: s.lastUnit,
+          lastCategory: s.lastCategory,
+          shelfLifeMonths: s.shelfLifeMonths ?? known?.shelfLifeMonths ?? null,
+          useCount: Math.max(known?.useCount ?? 0, s.useCount),
+        });
+      }
+      for (const b of args.barcodes ?? [])
+        await tx.mutate.barcode.upsert({ id: barcodeId(f, b.code), freezerId: f, ...b });
     }),
   },
 
@@ -148,12 +228,12 @@ export const mutators = defineMutators({
         name,
         quantity,
         unit,
-        frozenAt: z.number().int(),
-        notes: z.string().trim().max(500).nullable(),
+        frozenAt: date,
+        notes,
         category: categoryArg,
         bestBefore: bestBeforeArg,
         // Scanned product code: remembered with the name, quantity, unit and category this item was saved with.
-        barcode: z.string().regex(BARCODE_PATTERN).optional(),
+        barcode: barcodeField.optional(),
       }),
       async ({ tx, ctx, args }) => {
         await requireRole(tx, ctx, args.freezerId);
@@ -209,8 +289,8 @@ export const mutators = defineMutators({
         name,
         quantity,
         unit,
-        frozenAt: z.number().int(),
-        notes: z.string().trim().max(500).nullable(),
+        frozenAt: date,
+        notes,
         category: categoryArg,
         bestBefore: bestBeforeArg,
       }),
@@ -256,11 +336,11 @@ export const mutators = defineMutators({
           containerNumber,
           name,
           unit,
-          frozenAt: z.number().int(),
-          notes: z.string().trim().max(500).nullable(),
+          frozenAt: date,
+          notes,
           category: categoryArg,
           bestBefore: bestBeforeArg,
-          createdAt: z.number().int(),
+          createdAt: date,
         }),
         amount: quantity,
       }),
