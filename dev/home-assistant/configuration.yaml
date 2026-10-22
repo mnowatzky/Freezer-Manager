@@ -1,0 +1,71 @@
+# Home Assistant for testing the Freezer Manager API locally (docker-compose.dev.yml, profile
+# "home-assistant"). The freezer parts are the README's example (API and Home Assistant), with the
+# URLs and the token in secrets.yaml (written by write-secrets.sh) instead of placeholders.
+default_config:
+
+logger:
+  default: warning
+  logs:
+    homeassistant.components.rest: debug
+    homeassistant.components.conversation: debug
+
+rest:
+  - resource: !secret freezer_summary_url
+    headers:
+      Authorization: !secret freezer_token
+    scan_interval: 900
+    sensor:
+      - name: Freezer eat soon
+        unique_id: freezer_eat_soon
+        icon: mdi:fridge-alert
+        # Items due within a week, plus those already past their date.
+        value_template: "{{ value_json.soon + value_json.expired }}"
+        json_attributes: [items, soon, expired, byCategory, nextExpiring]
+
+rest_command:
+  freezer_add:
+    url: !secret freezer_items_url
+    method: post
+    headers:
+      Authorization: !secret freezer_token
+    content_type: application/json
+    payload: >-
+      {"name": {{ food | to_json }}, "quantity": {{ quantity | default(1) | float }}
+      {%- if drawer %}, "drawer": {{ drawer | to_json }}{% endif %}}
+  freezer_take:
+    url: !secret freezer_take_url
+    method: post
+    headers:
+      Authorization: !secret freezer_token
+    content_type: application/json
+    payload: '{"name": {{ food | to_json }}, "amount": {{ quantity | default(1) | float }}}'
+
+intent_script:
+  FreezerAdd:
+    action:
+      - action: rest_command.freezer_add
+        data:
+          food: "{{ food }}"
+          quantity: "{{ quantity }}"
+          # The drawer's position in the app (1 = top), whatever the drawers are called.
+          drawer: "{{ drawer if drawer is defined else '' }}"
+        response_variable: result
+      - stop: ""
+        response_variable: result
+    speech:
+      text: >-
+        {% if action_response.status == 201 %}Froze {{ quantity | int }} {{ food }}.
+        {%- else %}That didn't work: {{ action_response.content.message | default('error ' ~ action_response.status) }}{% endif %}
+  FreezerTake:
+    action:
+      - action: rest_command.freezer_take
+        data:
+          food: "{{ food }}"
+          quantity: "{{ quantity }}"
+        response_variable: result
+      - stop: ""
+        response_variable: result
+    speech:
+      text: >-
+        {% if action_response.status == 200 %}Took {{ action_response.content.taken | int }} {{ food }} out, {{ action_response.content.remaining | int }} left.
+        {%- else %}That didn't work: {{ action_response.content.message | default('error ' ~ action_response.status) }}{% endif %}

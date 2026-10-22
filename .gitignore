@@ -17,4 +17,9 @@ apps/web/dev-dist
 *.tsbuildinfo
 .claude/settings.local.json
 .playwright-mcp/
+# Dev Home Assistant: only its config is committed, not its state or secrets
+/dev/home-assistant/*
+!/dev/home-assistant/configuration.yaml
+!/dev/home-assistant/custom_sentences/
+!/dev/home-assistant/write-secrets.sh
 .production-readiness/

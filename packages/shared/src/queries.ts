@@ -33,6 +33,12 @@ export const queries = defineQueries({
         .orderBy("createdAt", "desc"),
     ),
   },
+  // The user's own active API tokens (never the token hash, which isn't synced at all).
+  apiTokens: {
+    mine: defineQuery(({ ctx }) =>
+      zql.apiToken.where("userId", ctx.userID).where("revokedAt", "IS", null).orderBy("createdAt", "desc"),
+    ),
+  },
   items: {
     // Scan target: which of my freezers currently holds container #n?
     byContainer: defineQuery(z.object({ containerNumber: z.number().int() }), ({ args, ctx }) =>

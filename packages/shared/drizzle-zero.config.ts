@@ -15,6 +15,8 @@ export default drizzleZeroConfig(drizzleSchema, {
     foodSuggestion: true,
     barcode: true,
     invite: true,
+    // Without token_hash (also left out of the publication's column list).
+    apiToken: { id: true, userId: true, name: true, prefix: true, scope: true, createdAt: true, lastUsedAt: true, revokedAt: true },
     pushSubscription: false,
     expiryNotice: false,
   },

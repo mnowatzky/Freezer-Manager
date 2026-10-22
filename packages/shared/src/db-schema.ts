@@ -211,6 +211,27 @@ export const invite = pgTable(
   (t) => [index("invite_freezer_idx").on(t.freezerId)],
 );
 
+// Personal API tokens for the public API (/api/v1, e.g. Home Assistant). Only a SHA-256 hash of the
+// token is stored; it is shown once when created. Synced to its owner without token_hash.
+export const apiToken = pgTable(
+  "api_token",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    tokenHash: text("token_hash").notNull().unique(),
+    // First characters of the token, to recognize it in the list.
+    prefix: text("prefix").notNull(),
+    scope: text("scope").$type<"read" | "write">().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (t) => [index("api_token_user_idx").on(t.userId)],
+);
+
 // ---------------------------------------------------------------------------
 // Push notifications (server-only: not in the zero_app publication, not in the Zero schema)
 // ---------------------------------------------------------------------------
@@ -253,6 +274,11 @@ export const expiryNotice = pgTable(
 
 export const userRelations = relations(user, ({ many }) => ({
   memberships: many(freezerMember),
+  apiTokens: many(apiToken),
+}));
+
+export const apiTokenRelations = relations(apiToken, ({ one }) => ({
+  user: one(user, { fields: [apiToken.userId], references: [user.id] }),
 }));
 
 export const freezerRelations = relations(freezer, ({ many }) => ({

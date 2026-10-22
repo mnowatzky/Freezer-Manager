@@ -20,6 +20,7 @@ import { env } from "./env";
 import { errorFields, log } from "./log";
 import { createSignupLink } from "./pocket-id";
 import { LookupFailed, lookupProduct, toProduct } from "./products";
+import { generateToken, publicApi } from "./public-api";
 import { clientIp, rateLimiter } from "./rate-limit";
 import { secretsEqual } from "./secrets";
 
@@ -46,8 +47,11 @@ app.get("/api/health", (c) => c.json({ ok: true, ...build }));
 // Better Auth checks origins for /api/auth itself; /api/zero is called server-to-server by
 // zero-cache and protected by the shared API key instead.
 const csrf = sameOriginOnly(env.webOrigin);
+// The public API (/api/v1) authenticates with Bearer tokens, not cookies, so CSRF doesn't apply.
 app.use("/api/*", (c, next) =>
-  c.req.path.startsWith("/api/auth/") || c.req.path.startsWith("/api/zero/") ? next() : csrf(c, next),
+  c.req.path.startsWith("/api/auth/") || c.req.path.startsWith("/api/zero/") || c.req.path.startsWith("/api/v1/")
+    ? next()
+    : csrf(c, next),
 );
 
 app.on(["GET", "POST"], "/api/auth/*", (c) => auth.handler(c.req.raw));
@@ -272,3 +276,30 @@ app.get("/api/products/:code", async (c) => {
     throw err;
   }
 });
+
+// ---------------------------------------------------------------------------
+// Personal API tokens (Settings → API tokens) and the public API they unlock (public-api.ts).
+// The token is shown once; only its SHA-256 hash is stored. Listing and revoking go through Zero.
+// ---------------------------------------------------------------------------
+
+const MAX_ACTIVE_TOKENS = 20;
+const tokenBody = z.object({ name: z.string().trim().min(1).max(100), scope: z.enum(["read", "write"]) });
+
+app.post("/api/tokens", bodyLimit({ maxSize: 1024 }), async (c) => {
+  const userID = await sessionUserId(c);
+  if (!userID) return c.json({ error: "unauthorized" }, 401);
+  const body = tokenBody.safeParse(await c.req.json().catch(() => null));
+  if (!body.success) return c.json({ error: "invalid" }, 400);
+  const active = await db
+    .select({ id: schema.apiToken.id })
+    .from(schema.apiToken)
+    .where(and(eq(schema.apiToken.userId, userID), isNull(schema.apiToken.revokedAt)));
+  if (active.length >= MAX_ACTIVE_TOKENS) return c.json({ error: "too_many_tokens" }, 409);
+  const { token, hash, prefix } = generateToken();
+  const id = randomUUID();
+  await db.insert(schema.apiToken).values({ id, userId: userID, name: body.data.name, tokenHash: hash, prefix, scope: body.data.scope, createdAt: new Date() });
+  log("info", "API token created", { user: userID, token: id, scope: body.data.scope });
+  return c.json({ id, token }, 201);
+});
+
+app.route("/api/v1", publicApi());

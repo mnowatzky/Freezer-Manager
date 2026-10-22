@@ -23,7 +23,7 @@ Implementation plan for the next features of Freezer Manager. Each feature (A–
 | D | Push notifications one week before best-before | C | `push_subscription`, `expiry_notice` (not synced) | L | done |
 | E | Barcode scanning with Open Food Facts | B | `barcode` table (synced) | M | done |
 | F | Export / import | B, C | none | M | done |
-| G | API tokens + Home Assistant | C | `api_token` (synced without hash column) | M–L | todo |
+| G | API tokens + Home Assistant | C | `api_token` (synced without hash column) | M–L | done |
 
 ## Open decisions
 
