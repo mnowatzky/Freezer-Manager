@@ -1,6 +1,30 @@
 export const UNITS = ["piece", "portion", "bag", "g", "kg", "ml", "l"] as const;
 export type Unit = (typeof UNITS)[number];
 
+/**
+ * Fixed food categories (translated in i18n, icons in the web app). `months` is a rough default
+ * storage time based on common freezer guidance, used for best-before dates; users override it per food.
+ */
+export const CATEGORIES = {
+  meat: { months: 6 },
+  poultry: { months: 8 },
+  fish: { months: 4 },
+  vegetables: { months: 12 },
+  fruit: { months: 10 },
+  herbs: { months: 8 },
+  baked: { months: 3 },
+  meals: { months: 3 },
+  soups: { months: 4 },
+  dairy: { months: 6 },
+  desserts: { months: 3 },
+  other: { months: null },
+} as const satisfies Record<string, { months: number | null }>;
+export type Category = keyof typeof CATEGORIES;
+export const CATEGORY_IDS = Object.keys(CATEGORIES) as [Category, ...Category[]];
+
+export const isCategory = (value: unknown): value is Category =>
+  typeof value === "string" && Object.hasOwn(CATEGORIES, value);
+
 export const MAX_DRAWERS = 20;
 export const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 

@@ -1,5 +1,5 @@
 import { queries } from "@freezer/shared/queries";
-import type { Unit } from "@freezer/shared/domain";
+import { isCategory, type Unit } from "@freezer/shared/domain";
 import { useZero } from "@rocicorp/zero/react";
 import { useCallback } from "react";
 import { quantityLabel } from "./format";
@@ -28,6 +28,7 @@ export function useRemoveWithUndo() {
         unit: item.unit as Unit,
         frozenAt: item.frozenAt,
         notes: item.notes,
+        category: isCategory(item.category) ? item.category : null,
         createdAt: item.createdAt,
       };
       // The mutator silently drops a container number that has been reused since; Zero mutators

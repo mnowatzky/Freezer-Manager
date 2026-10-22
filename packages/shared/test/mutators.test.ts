@@ -166,6 +166,46 @@ describe("items", () => {
   });
 });
 
+describe("categories", () => {
+  const get = () => zdb.run(zql.item.where("id", "i1").one());
+  const update = (over: Record<string, unknown> = {}) => {
+    const { freezerId: _f, ...rest } = addArgs(over);
+    return rest;
+  };
+
+  it("stores the category on the item and remembers it for the food", async () => {
+    await as("alice", (m) => call(m.item.add(addArgs({ category: "meat" }))));
+    expect((await get())?.category).toBe("meat");
+    const [s] = await zdb.run(zql.foodSuggestion.where("freezerId", "f1"));
+    expect(s?.lastCategory).toBe("meat");
+  });
+
+  it("keeps the remembered category when an older app adds without one", async () => {
+    await as("alice", (m) => call(m.item.add(addArgs({ category: "meat", containerNumber: null }))));
+    await as("alice", (m) => call(m.item.add(addArgs({ id: "i2", containerNumber: null }))));
+    const [s] = await zdb.run(zql.foodSuggestion.where("freezerId", "f1"));
+    expect(s?.lastCategory).toBe("meat");
+    expect((await zdb.run(zql.item.where("id", "i2").one()))?.category).toBeNull();
+    // An explicit null clears it.
+    await as("alice", (m) => call(m.item.add(addArgs({ id: "i3", containerNumber: null, category: null }))));
+    expect((await zdb.run(zql.foodSuggestion.where("freezerId", "f1")))[0]?.lastCategory).toBeNull();
+  });
+
+  it("update changes the category, or leaves it alone when an older app omits it", async () => {
+    await as("alice", (m) => call(m.item.add(addArgs({ category: "meat" }))));
+    await as("alice", (m) => call(m.item.update(update({ category: "meals" }))));
+    expect((await get())?.category).toBe("meals");
+    await as("alice", (m) => call(m.item.update(update({ quantity: 2 }))));
+    expect(await get()).toMatchObject({ category: "meals", quantity: 2 });
+    await as("alice", (m) => call(m.item.update(update({ category: null }))));
+    expect((await get())?.category).toBeNull();
+  });
+
+  it("rejects unknown categories", async () => {
+    await expect(as("alice", (m) => call(m.item.add(addArgs({ category: "snacks" }))))).rejects.toThrow();
+  });
+});
+
 describe("undo (item.putBack)", () => {
   const snapshot = (over: Record<string, unknown> = {}) => {
     const { quantity: _q, ...rest } = addArgs(over);
@@ -210,6 +250,12 @@ describe("undo (item.putBack)", () => {
     await as("bob", () => putBack(5));
     expect(await get()).toMatchObject({ quantity: 5, containerNumber: null });
     expect((await get("i2"))?.containerNumber).toBe(5);
+  });
+
+  it("restores the category", async () => {
+    await as("alice", (m) => call(m.item.delete({ id: "i1" })));
+    await as("alice", () => putBack(5, { category: "soups" }));
+    expect((await get())?.category).toBe("soups");
   });
 
   it("sets createdBy from the session and leaves the suggestion's use count alone", async () => {

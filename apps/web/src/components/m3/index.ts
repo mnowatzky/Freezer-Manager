@@ -2,6 +2,7 @@ export { Button, IconButton } from "./Button";
 export { ConnectedButtonGroup } from "./ButtonGroup";
 export { Chip } from "./Chip";
 export { Fab } from "./Fab";
+export { FilterChip } from "./FilterChip";
 export { Icon } from "./Icon";
 export { ListGroup, ListItem } from "./List";
 export { LoadingIndicator } from "./LoadingIndicator";
