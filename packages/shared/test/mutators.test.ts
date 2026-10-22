@@ -206,6 +206,57 @@ describe("categories", () => {
   });
 });
 
+describe("best-before dates", () => {
+  const frozenAt = Date.UTC(2026, 0, 15);
+  const get = (id = "i1") => zdb.run(zql.item.where("id", id).one());
+  const suggestion = async () => (await zdb.run(zql.foodSuggestion.where("freezerId", "f1")))[0];
+  const add = (over: Record<string, unknown> = {}) =>
+    as("alice", (m) => call(m.item.add(addArgs({ containerNumber: null, frozenAt, ...over }))));
+
+  it("defaults to the category's storage time, or none", async () => {
+    await add({ category: "meat" });
+    expect((await get())?.bestBefore).toBe(Date.UTC(2026, 6, 15));
+    await add({ id: "i2", name: "Reste", category: "other" });
+    expect((await get("i2"))?.bestBefore).toBeNull();
+    await add({ id: "i3", name: "Alt" }); // app from before best-before dates: no category, no date
+    expect((await get("i3"))?.bestBefore).toBeNull();
+  });
+
+  it("keeps a date the app computed and doesn't treat it as a hand-picked one", async () => {
+    await add({ category: "meat", bestBefore: Date.UTC(2026, 6, 15) });
+    expect((await suggestion())?.shelfLifeMonths).toBeNull();
+  });
+
+  it("remembers a hand-picked date as the food's storage time", async () => {
+    await add({ category: "meat", bestBefore: Date.UTC(2026, 3, 15) });
+    expect((await get())?.bestBefore).toBe(Date.UTC(2026, 3, 15));
+    expect((await suggestion())?.shelfLifeMonths).toBe(3);
+    // The next item of that food without an explicit date gets the same storage time.
+    await add({ id: "i2", category: "meat", frozenAt: Date.UTC(2026, 4, 1) });
+    expect((await get("i2"))?.bestBefore).toBe(Date.UTC(2026, 7, 1));
+  });
+
+  it("stores an explicit null (no date) without forgetting the storage time", async () => {
+    await add({ category: "meat", bestBefore: Date.UTC(2026, 3, 15) });
+    await add({ id: "i2", category: "meat", bestBefore: null });
+    expect((await get("i2"))?.bestBefore).toBeNull();
+    expect((await suggestion())?.shelfLifeMonths).toBe(3);
+  });
+
+  it("update sets the date and remembers a hand-picked one; an older app leaves it alone", async () => {
+    await add({ category: "meat" });
+    const update = (over: Record<string, unknown> = {}) => {
+      const { freezerId: _f, ...rest } = addArgs({ containerNumber: null, frozenAt, category: "meat", ...over });
+      return rest;
+    };
+    await as("bob", (m) => call(m.item.update(update({ bestBefore: Date.UTC(2026, 1, 15) }))));
+    expect((await get())?.bestBefore).toBe(Date.UTC(2026, 1, 15));
+    expect((await suggestion())?.shelfLifeMonths).toBe(1);
+    await as("bob", (m) => call(m.item.update(update({ quantity: 1 }))));
+    expect((await get())?.bestBefore).toBe(Date.UTC(2026, 1, 15));
+  });
+});
+
 describe("undo (item.putBack)", () => {
   const snapshot = (over: Record<string, unknown> = {}) => {
     const { quantity: _q, ...rest } = addArgs(over);
@@ -252,10 +303,10 @@ describe("undo (item.putBack)", () => {
     expect((await get("i2"))?.containerNumber).toBe(5);
   });
 
-  it("restores the category", async () => {
+  it("restores the category and best-before date", async () => {
     await as("alice", (m) => call(m.item.delete({ id: "i1" })));
-    await as("alice", () => putBack(5, { category: "soups" }));
-    expect((await get())?.category).toBe("soups");
+    await as("alice", () => putBack(5, { category: "soups", bestBefore: Date.UTC(2027, 0, 1) }));
+    expect(await get()).toMatchObject({ category: "soups", bestBefore: Date.UTC(2027, 0, 1) });
   });
 
   it("sets createdBy from the session and leaves the suggestion's use count alone", async () => {

@@ -1,10 +1,15 @@
-import { todayAsDate, type Unit } from "@freezer/shared/domain";
+import { DAY_MS, todayAsDate, type Unit } from "@freezer/shared/domain";
 import { formatLocale, t } from "./i18n";
 
 const DAY = 86_400_000;
 
 export function ageLabel(frozenAt: number) {
   return t.item.age(Math.max(0, Math.floor((todayAsDate() - frozenAt) / DAY)));
+}
+
+/** "in 5 days", "2 weeks over", … */
+export function bestBeforeLabel(bestBefore: number) {
+  return t.item.bestBeforeRelative(Math.round((bestBefore - todayAsDate()) / DAY_MS));
 }
 
 export function quantityLabel(quantity: number, unit: string) {

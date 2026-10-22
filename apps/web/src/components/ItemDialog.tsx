@@ -1,4 +1,14 @@
-import { CATEGORY_IDS, isCategory, todayAsDate, UNITS, type Category, type Unit } from "@freezer/shared/domain";
+import {
+  CATEGORY_IDS,
+  defaultBestBefore,
+  isCategory,
+  shelfLifeMonths,
+  suggestionId,
+  todayAsDate,
+  UNITS,
+  type Category,
+  type Unit,
+} from "@freezer/shared/domain";
 import { t } from "../lib/i18n";
 import { AnimatePresence, motion, useIsPresent } from "motion/react";
 import { useMemo, useRef, useState } from "react";
@@ -53,6 +63,11 @@ export function ItemForm({ freezer, item, containerNumber = null, onDone }: Form
   const [frozenAt, setFrozenAt] = useState(dateToInput(item?.frozenAt ?? todayAsDate()));
   const [container, setContainer] = useState(String(item?.containerNumber ?? containerNumber ?? ""));
   const [notes, setNotes] = useState(item?.notes ?? "");
+  // Best-before follows the food's storage time until it's edited by hand. When editing an item, its
+  // stored date (or none) counts as chosen, so existing items aren't changed behind the user's back.
+  const [manualBestBefore, setManualBestBefore] = useState<string | null>(
+    item ? (item.bestBefore !== null ? dateToInput(item.bestBefore) : "") : null,
+  );
   const [focused, setFocused] = useState(false);
   const nameAreaRef = useRef<HTMLDivElement>(null);
 
@@ -62,6 +77,17 @@ export function ItemForm({ freezer, item, containerNumber = null, onDone }: Form
       .filter((s) => !q || (s.name.toLocaleLowerCase("de").includes(q) && s.name.toLocaleLowerCase("de") !== q))
       .slice(0, 5);
   }, [name, freezer.suggestions]);
+
+  const remembered = freezer.suggestions.find((s) => s.id === suggestionId(freezer.id, name))?.shelfLifeMonths;
+  const months = shelfLifeMonths(remembered, category);
+  const autoBestBefore = frozenAt ? defaultBestBefore(inputToDate(frozenAt), months) : null;
+  const bestBefore = manualBestBefore ?? (autoBestBefore !== null ? dateToInput(autoBestBefore) : "");
+
+  const chooseCategory = (c: Category | null) => {
+    setCategory(c);
+    // An item from before best-before dates gets the default once someone gives it a category.
+    if (item?.bestBefore === null && manualBestBefore === "") setManualBestBefore(null);
+  };
 
   const qty = Number(quantity.replace(",", "."));
   const valid = Boolean(name.trim() && qty > 0 && drawerId && frozenAt);
@@ -78,6 +104,7 @@ export function ItemForm({ freezer, item, containerNumber = null, onDone }: Form
       frozenAt: inputToDate(frozenAt),
       notes: notes.trim() || null,
       category,
+      bestBefore: bestBefore ? inputToDate(bestBefore) : null,
     };
     const ok = item
       ? await mutate(mutators.item.update({ id: item.id, ...fields }))
@@ -165,7 +192,7 @@ export function ItemForm({ freezer, item, containerNumber = null, onDone }: Form
         <span className="type-label-medium text-on-surface-variant">
           {t.item.category} ({t.common.optional})
         </span>
-        <CategoryChips options={CATEGORY_IDS} value={category} onChange={setCategory} label={t.item.category} bleed="px-6" />
+        <CategoryChips options={CATEGORY_IDS} value={category} onChange={chooseCategory} label={t.item.category} bleed="px-6" />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -198,7 +225,16 @@ export function ItemForm({ freezer, item, containerNumber = null, onDone }: Form
         />
       </div>
 
-      <TextField type="date" label={t.item.frozenAt} value={frozenAt} onChange={(e) => setFrozenAt(e.target.value)} />
+      <div className="grid grid-cols-2 items-start gap-3">
+        <TextField type="date" label={t.item.frozenAt} value={frozenAt} onChange={(e) => setFrozenAt(e.target.value)} />
+        <TextField
+          type="date"
+          label={t.item.bestBefore}
+          value={bestBefore}
+          supporting={manualBestBefore === null && months ? t.item.bestBeforeDefault(months) : t.common.optional}
+          onChange={(e) => setManualBestBefore(e.target.value)}
+        />
+      </div>
       <TextArea label={`${t.item.notes} (${t.common.optional})`} rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
 
       <div className="flex justify-end gap-2 pt-2">

@@ -47,6 +47,8 @@ export const en: Messages = {
     viewDrawer: "Drawer",
     viewDate: "Date",
     viewName: "Name",
+    viewBestBefore: "Expiry",
+    eatSoon: "Eat soon",
     freeze: "Freeze",
     scan: "Scan",
     settings: "Settings",
@@ -73,6 +75,18 @@ export const en: Messages = {
     edit: "Edit",
     removeSuggestion: "Remove suggestion",
     category: "Category",
+    bestBefore: "Best before",
+    bestBeforeDefault: (months: number) => `${months} ${months === 1 ? "month" : "months"} after freezing`,
+    bestBeforeRelative: (days: number) => {
+      if (days === 0) return "today";
+      if (days === 1) return "tomorrow";
+      if (days > 1) return days < 14 ? `in ${days} days` : days < 60 ? `in ${Math.round(days / 7)} weeks` : `in ${Math.round(days / 30)} months`;
+      const over = -days;
+      if (over < 14) return over === 1 ? "1 day over" : `${over} days over`;
+      if (over < 60) return `${Math.round(over / 7)} weeks over`;
+      const m = Math.round(over / 30);
+      return m === 1 ? "1 month over" : `${m} months over`;
+    },
     took: (name: string, qty: string) => `Took ${qty} of ${name}`,
     deleted: (name: string) => `Deleted “${name}”`,
     restoredWithoutContainer: (n: number) => `Put back without container ${n}, which is now in use.`,

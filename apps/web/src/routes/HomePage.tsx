@@ -1,10 +1,11 @@
-import { CATEGORY_IDS, isCategory, type Category } from "@freezer/shared/domain";
+import { CATEGORY_IDS, freshness, isCategory, todayAsDate, type Category } from "@freezer/shared/domain";
 import { locale, t } from "../lib/i18n";
 import { AnimatePresence, motion, useMotionValueEvent, useScroll } from "motion/react";
 import { useMemo, useRef, useState } from "react";
 import { Navigate, useNavigate } from "react-router";
 import { FullScreenLoading } from "../components/AuthedLayout";
 import { CategoryChips } from "../components/CategoryChips";
+import { FreshnessChip } from "../components/FreshnessChip";
 import { ItemDialog } from "../components/ItemDialog";
 import { ItemSheet } from "../components/ItemSheet";
 import { Chip, ConnectedButtonGroup, Fab, Icon, IconButton, ListGroup, ListItem, Sheet, TopAppBar } from "../components/m3";
@@ -15,7 +16,10 @@ import { useFreezerData, type FreezerDetail, type ItemRow } from "../lib/freezer
 import { useCanWrite } from "../lib/zero";
 import { motionScheme } from "../theme/motion";
 
-type View = "drawer" | "date" | "name";
+type View = "drawer" | "date" | "bestBefore" | "name";
+
+// Items without a best-before date sort last.
+const byBestBefore = (a: ItemRow, b: ItemRow) => (a.bestBefore ?? Infinity) - (b.bestBefore ?? Infinity);
 
 export function HomePage() {
   const data = useFreezerData();
@@ -67,9 +71,16 @@ function FreezerView({ data, freezer }: { data: ReturnType<typeof useFreezerData
       (i) => (!category || i.category === category) && (!q || i.name.toLocaleLowerCase("de").includes(q)),
     );
     if (view === "name") filtered.sort((a, b) => a.name.localeCompare(b.name, locale));
+    if (view === "bestBefore") filtered.sort(byBestBefore); // stable: ties stay oldest first
     return filtered; // already sorted oldest first by the query
   }, [freezer.items, search, category, view]);
   const filtering = Boolean(search.trim() || category);
+
+  const eatSoon = useMemo(() => {
+    const today = todayAsDate();
+    return freezer.items.filter((i) => freshness(i.bestBefore, today) !== "ok").sort(byBestBefore);
+  }, [freezer.items]);
+  const [eatSoonOpen, setEatSoonOpen] = useState(true);
 
   return (
     <div className="min-h-dvh pb-40">
@@ -110,9 +121,39 @@ function FreezerView({ data, freezer }: { data: ReturnType<typeof useFreezerData
           options={[
             { value: "drawer", label: t.freezer.viewDrawer, icon: "shelves" },
             { value: "date", label: t.freezer.viewDate, icon: "calendar_month" },
+            { value: "bestBefore", label: t.freezer.viewBestBefore, icon: "hourglass_bottom" },
             { value: "name", label: t.freezer.viewName, icon: "sort_by_alpha" },
           ]}
         />
+
+        {!filtering && eatSoon.length > 0 && (
+          <section aria-labelledby="eat-soon">
+            <button
+              type="button"
+              aria-expanded={eatSoonOpen}
+              onClick={() => setEatSoonOpen((o) => !o)}
+              className="state-layer type-title-small mt-2 mb-2 flex w-full cursor-pointer items-center gap-2 rounded-s px-1 py-1 text-left text-error"
+            >
+              <Icon name="hourglass_bottom" size={18} />
+              <span id="eat-soon">{t.freezer.eatSoon}</span>
+              <span className="type-label-medium text-on-surface-variant">· {eatSoon.length}</span>
+              <Icon name={eatSoonOpen ? "expand_less" : "expand_more"} size={20} className="ml-auto text-on-surface-variant" />
+            </button>
+            <AnimatePresence initial={false}>
+              {eatSoonOpen && (
+                <motion.div
+                  className="overflow-hidden"
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={motionScheme.defaultSpatial}
+                >
+                  <ItemList items={eatSoon} onSelect={setSelectedId} drawers={freezer.drawers} />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </section>
+        )}
 
         {freezer.items.length === 0 ? (
           <EmptyState icon="ac_unit" title={t.freezer.noItems} hint={t.freezer.noItemsHint} />
@@ -189,7 +230,12 @@ function ItemList({ items, onSelect, drawers }: { items: ItemRow[]; onSelect: (i
                 {drawers && ` · ${drawers.find((d) => d.id === item.drawerId)?.name ?? ""}`}
               </>
             }
-            trailing={item.containerNumber !== null ? <Chip icon="qr_code_2">{item.containerNumber}</Chip> : undefined}
+            trailing={
+              <div className="flex flex-col items-end gap-1">
+                <FreshnessChip bestBefore={item.bestBefore} />
+                {item.containerNumber !== null && <Chip icon="qr_code_2">{item.containerNumber}</Chip>}
+              </div>
+            }
           />
         ))}
       </AnimatePresence>

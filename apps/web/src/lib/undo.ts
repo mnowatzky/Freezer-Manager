@@ -29,6 +29,7 @@ export function useRemoveWithUndo() {
         frozenAt: item.frozenAt,
         notes: item.notes,
         category: isCategory(item.category) ? item.category : null,
+        bestBefore: item.bestBefore,
         createdAt: item.createdAt,
       };
       // The mutator silently drops a container number that has been reused since; Zero mutators

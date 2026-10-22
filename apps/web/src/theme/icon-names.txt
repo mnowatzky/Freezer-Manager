@@ -14,9 +14,11 @@ dinner_dining
 edit
 egg
 error
+expand_less
 expand_more
 grocery
 group
+hourglass_bottom
 icecream
 kebab_dining
 key
