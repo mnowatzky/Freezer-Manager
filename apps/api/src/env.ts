@@ -29,4 +29,16 @@ export const env = {
   registrationCode: process.env.REGISTRATION_CODE?.trim() || undefined,
   /** Shared secret zero-cache sends as X-Api-Key on /api/zero/* calls. */
   zeroApiKey: required("ZERO_API_KEY"),
+  /** Web Push (VAPID) keys from `npx web-push generate-vapid-keys`; push notifications are off unless all three are set. */
+  vapid: vapidConfig(),
+  /** Hour of the day (container time zone, TZ) after which the daily best-before notifications go out. */
+  notifyHour: Number(process.env.NOTIFY_HOUR || 9),
 };
+
+function vapidConfig() {
+  const publicKey = process.env.VAPID_PUBLIC_KEY?.trim();
+  const privateKey = process.env.VAPID_PRIVATE_KEY?.trim();
+  const subject = process.env.VAPID_SUBJECT?.trim();
+  if (!publicKey || !privateKey || !subject) return undefined;
+  return { publicKey, privateKey, subject };
+}

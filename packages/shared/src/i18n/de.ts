@@ -151,6 +151,10 @@ export const de = {
     labels: "QR-Etiketten drucken",
     appVersion: (v: string) => `App ${v}`,
     serverVersion: (v: string) => `Server ${v}`,
+    notifications: "Benachrichtigungen",
+    notificationsHint: "Auf diesem Gerät, eine Woche vor dem Haltbarkeitsdatum und am Tag selbst",
+    notificationsBlocked: "Benachrichtigungen sind für diese Seite blockiert. Erlaube sie in den Browser-Einstellungen.",
+    notificationsInstall: "Auf iPhone und iPad gibt es Benachrichtigungen nur in der installierten App (ab iOS 16.4): Teilen → „Zum Home-Bildschirm“.",
     versionMismatch: "App und Server haben unterschiedliche Versionen. Schließe die App und öffne sie neu, um sie zu aktualisieren.",
   },
   join: {
@@ -169,6 +173,9 @@ export const de = {
     to: "Bis",
     size: "Größe (cm)",
     print: "Drucken",
+  },
+  push: {
+    title: (n: number) => (n === 1 ? "1 Lebensmittel sollte bald gegessen werden" : `${n} Lebensmittel sollten bald gegessen werden`),
   },
   errorPage: {
     title: "Ups, da ist etwas schiefgelaufen.",

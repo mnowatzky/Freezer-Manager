@@ -14,5 +14,7 @@ export default drizzleZeroConfig(drizzleSchema, {
     item: true,
     foodSuggestion: true,
     invite: true,
+    pushSubscription: false,
+    expiryNotice: false,
   },
 });

@@ -69,6 +69,14 @@ services:
       # Optional: code that lets people without an invite create an account on the login page.
       REGISTRATION_CODE: ${REGISTRATION_CODE:-}
       ZERO_API_KEY: ${ZERO_API_KEY:?set ZERO_API_KEY}
+      # Optional: push notifications before best-before dates (keys: npx web-push generate-vapid-keys).
+      # Off unless all three are set.
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
+      # The daily notifications go out after this hour, in the time zone TZ.
+      NOTIFY_HOUR: ${NOTIFY_HOUR:-9}
+      TZ: ${TZ:-UTC}
     # Healthcheck: defined in apps/api/Dockerfile (GET /api/health).
     networks:
       internal:

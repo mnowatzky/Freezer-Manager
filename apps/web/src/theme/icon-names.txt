@@ -27,6 +27,8 @@ kitchen
 local_drink
 logout
 notes
+notifications
+notifications_off
 nutrition
 passkey
 person_add

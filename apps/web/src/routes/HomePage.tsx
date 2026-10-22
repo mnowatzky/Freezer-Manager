@@ -1,8 +1,8 @@
 import { CATEGORY_IDS, freshness, isCategory, todayAsDate, type Category } from "@freezer/shared/domain";
 import { locale, t } from "../lib/i18n";
 import { AnimatePresence, motion, useMotionValueEvent, useScroll } from "motion/react";
-import { useMemo, useRef, useState } from "react";
-import { Navigate, useNavigate } from "react-router";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Navigate, useNavigate, useSearchParams } from "react-router";
 import { FullScreenLoading } from "../components/AuthedLayout";
 import { CategoryChips } from "../components/CategoryChips";
 import { FreshnessChip } from "../components/FreshnessChip";
@@ -81,6 +81,21 @@ function FreezerView({ data, freezer }: { data: ReturnType<typeof useFreezerData
     return freezer.items.filter((i) => freshness(i.bestBefore, today) !== "ok").sort(byBestBefore);
   }, [freezer.items]);
   const [eatSoonOpen, setEatSoonOpen] = useState(true);
+
+  // A tapped best-before notification opens /?soon: show the "Eat soon" section (state adjusted
+  // during render, then the parameter is dropped from the URL).
+  const [params, setParams] = useSearchParams();
+  const fromNotification = params.has("soon");
+  if (fromNotification && (search || categoryFilter || !eatSoonOpen)) {
+    setSearch("");
+    setCategoryFilter(null);
+    setEatSoonOpen(true);
+  }
+  useEffect(() => {
+    if (!fromNotification) return;
+    window.scrollTo({ top: 0 });
+    setParams({}, { replace: true });
+  }, [fromNotification, setParams]);
 
   return (
     <div className="min-h-dvh pb-40">

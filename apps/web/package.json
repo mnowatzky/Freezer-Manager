@@ -6,7 +6,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "typecheck": "tsc -p .",
+    "typecheck": "tsc -p . && tsc -p tsconfig.sw.json",
     "generate-theme": "tsx scripts/generate-theme.ts",
     "fetch-icons": "tsx scripts/fetch-icons.ts",
     "generate-icons": "tsx scripts/generate-icons.ts"
@@ -39,6 +39,9 @@
     "vite": "8.3.4",
     "vite-plugin-pwa": "2.0.0",
     "workbox-build": "^7.4.1",
+    "workbox-core": "^7.4.1",
+    "workbox-precaching": "^7.4.1",
+    "workbox-routing": "^7.4.1",
     "workbox-window": "^7.4.1"
   }
 }

@@ -1,6 +1,7 @@
 import "@freezer/shared/context";
 import { buildInfo } from "@freezer/shared/build-info";
 import { INVITE_TTL_MS } from "@freezer/shared/domain";
+import { LOCALES } from "@freezer/shared/i18n";
 import { mutators } from "@freezer/shared/mutators";
 import { queries } from "@freezer/shared/queries";
 import { schema as zeroSchema } from "@freezer/shared/zero-schema";
@@ -11,6 +12,7 @@ import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { HTTPException } from "hono/http-exception";
 import { randomBytes, randomUUID } from "node:crypto";
+import { z } from "zod";
 import { auth } from "./auth";
 import { sameOriginOnly } from "./csrf";
 import { db, schema, zeroDb } from "./db";
@@ -182,4 +184,63 @@ app.post("/api/invites/:token/accept", async (c) => {
     .values({ freezerId: row.invite.freezerId, userId: userID, role: "member", joinedAt: new Date() })
     .onConflictDoNothing();
   return c.json({ freezerId: row.invite.freezerId });
+});
+
+// ---------------------------------------------------------------------------
+// Web Push subscriptions for best-before notifications (see expiry-job.ts). Only available when
+// the VAPID keys are configured; the web app hides the switch otherwise.
+// ---------------------------------------------------------------------------
+
+// The server POSTs to subscription endpoints, so only accept the browsers' push services
+// (otherwise anyone signed in could make it send requests to arbitrary hosts).
+const PUSH_HOSTS = ["fcm.googleapis.com", "push.apple.com", "push.services.mozilla.com", "notify.windows.com"];
+export function isPushEndpoint(endpoint: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(endpoint);
+  } catch {
+    return false;
+  }
+  return url.protocol === "https:" && !url.port && PUSH_HOSTS.some((h) => url.hostname === h || url.hostname.endsWith(`.${h}`));
+}
+
+const pushSubscriptionBody = z.object({
+  endpoint: z.string().max(2000).refine(isPushEndpoint),
+  keys: z.object({ p256dh: z.string().min(1).max(200), auth: z.string().min(1).max(100) }),
+  locale: z.enum(LOCALES),
+});
+
+app.get("/api/push/key", async (c) => {
+  if (!(await sessionUserId(c))) return c.json({ error: "unauthorized" }, 401);
+  if (!env.vapid) return c.json({ error: "disabled" }, 404);
+  return c.json({ publicKey: env.vapid.publicKey });
+});
+
+app.post("/api/push/subscriptions", bodyLimit({ maxSize: 4 * 1024 }), async (c) => {
+  const userID = await sessionUserId(c);
+  if (!userID) return c.json({ error: "unauthorized" }, 401);
+  if (!env.vapid) return c.json({ error: "disabled" }, 404);
+  const body = pushSubscriptionBody.safeParse(await c.req.json().catch(() => null));
+  if (!body.success) return c.json({ error: "invalid" }, 400);
+  const { endpoint, keys, locale } = body.data;
+  // One row per device: a device that signs in as someone else moves to that user.
+  await db
+    .insert(schema.pushSubscription)
+    .values({ id: randomUUID(), userId: userID, endpoint, p256dh: keys.p256dh, auth: keys.auth, locale, createdAt: new Date() })
+    .onConflictDoUpdate({
+      target: schema.pushSubscription.endpoint,
+      set: { userId: userID, p256dh: keys.p256dh, auth: keys.auth, locale },
+    });
+  return c.body(null, 204);
+});
+
+app.delete("/api/push/subscriptions", bodyLimit({ maxSize: 4 * 1024 }), async (c) => {
+  const userID = await sessionUserId(c);
+  if (!userID) return c.json({ error: "unauthorized" }, 401);
+  const body = (await c.req.json().catch(() => null)) as { endpoint?: unknown } | null;
+  if (typeof body?.endpoint !== "string") return c.json({ error: "invalid" }, 400);
+  await db
+    .delete(schema.pushSubscription)
+    .where(and(eq(schema.pushSubscription.endpoint, body.endpoint), eq(schema.pushSubscription.userId, userID)));
+  return c.body(null, 204);
 });

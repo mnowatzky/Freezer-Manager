@@ -6,10 +6,11 @@ import { useQuery } from "@rocicorp/zero/react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { FullScreenLoading } from "../components/AuthedLayout";
-import { Button, Icon, IconButton, ListGroup, ListItem, TopAppBar } from "../components/m3";
+import { Button, Icon, IconButton, ListGroup, ListItem, Switch, TopAppBar } from "../components/m3";
 import { authClient, signOut } from "../lib/auth-client";
 import { formatDate } from "../lib/format";
 import { useFreezerData, type FreezerDetail } from "../lib/freezer-data";
+import { usePush } from "../lib/push";
 import { useToast } from "../lib/toast";
 import { mutators, useCanWrite, useMutate } from "../lib/zero";
 import { motionScheme } from "../theme/motion";
@@ -111,6 +112,8 @@ function Settings({ freezer, userId }: { freezer: FreezerDetail; userId: string 
           </section>
         )}
 
+        <Notifications />
+
         <section>
           <ListGroup>
             <ListItem leading={<Icon name="print" className="text-primary" />} headline={t.settings.labels} onClick={() => void navigate("/labels")} />
@@ -153,6 +156,38 @@ function Settings({ freezer, userId }: { freezer: FreezerDetail; userId: string 
         <VersionInfo />
       </div>
     </div>
+  );
+}
+
+/** Best-before push notifications for this device; hidden when the server has no VAPID keys. */
+function Notifications() {
+  const push = usePush();
+  const toast = useToast();
+  if (push.state === "loading" || push.state === "hidden") return null;
+  const on = push.state === "on";
+  const supporting =
+    push.state === "install" ? t.settings.notificationsInstall : push.state === "blocked" ? t.settings.notificationsBlocked : t.settings.notificationsHint;
+  return (
+    <section>
+      <ListGroup>
+        <ListItem
+          leading={<Icon name={on ? "notifications" : "notifications_off"} filled={on} className="text-primary" />}
+          headline={t.settings.notifications}
+          supporting={<span className="whitespace-normal">{supporting}</span>}
+          trailing={
+            push.state === "on" || push.state === "off" ? (
+              <Switch
+                checked={on}
+                label={t.settings.notifications}
+                onChange={(checked) =>
+                  void (checked ? push.enable() : push.disable()).then((ok) => ok === false && toast(t.errors.generic))
+                }
+              />
+            ) : undefined
+          }
+        />
+      </ListGroup>
+    </section>
   );
 }
 
