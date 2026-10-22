@@ -188,7 +188,7 @@ export function ItemForm({ freezer, item, containerNumber = null, onDone }: Form
       <TextField type="date" label={t.item.frozenAt} value={frozenAt} onChange={(e) => setFrozenAt(e.target.value)} />
       <TextArea label={`${t.item.notes} (${t.common.optional})`} rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
 
-      <div className="flex flex-wrap justify-end gap-2 pt-2">
+      <div className="flex justify-end gap-2 pt-2">
         {item && (
           <Button
             type="button"
@@ -196,9 +196,11 @@ export function ItemForm({ freezer, item, containerNumber = null, onDone }: Form
             icon="delete"
             className="mr-auto"
             disabled={!canWrite}
+            title={t.common.delete}
             onClick={() => void remove(item).then((ok) => ok && onDone())}
           >
-            {t.common.delete}
+            {/* Icon only on phones, so it fits next to Cancel and Save. */}
+            <span className="sr-only sm:not-sr-only">{t.common.delete}</span>
           </Button>
         )}
         <Button type="button" variant="text" onClick={onDone}>
