@@ -1,3 +1,5 @@
+import { isCategory } from "@freezer/shared/domain";
+import { CATEGORY_ICONS } from "../lib/categories";
 import { t } from "../lib/i18n";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
@@ -58,6 +60,7 @@ function Details({ freezer, item, onMode }: { freezer: FreezerDetail; item: Item
     ["shelves", t.item.drawer, drawer?.name],
     ["calendar_month", t.item.frozenAt, `${formatDate(item.frozenAt)} · ${ageLabel(item.frozenAt)}`],
   ];
+  if (isCategory(item.category)) rows.push([CATEGORY_ICONS[item.category], t.item.category, t.categories[item.category]]);
   if (item.containerNumber !== null) rows.push(["qr_code_2", t.item.container, `#${item.containerNumber}`]);
   if (item.notes) rows.push(["notes", t.item.notes, <span key="notes" className="whitespace-pre-wrap">{item.notes}</span>]);
 

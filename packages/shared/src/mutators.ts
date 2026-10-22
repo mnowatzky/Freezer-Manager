@@ -2,7 +2,7 @@ import { defineMutator, defineMutators, type Transaction } from "@rocicorp/zero"
 import { z } from "zod";
 import "./context";
 import type { ZeroContext } from "./context";
-import { MAX_DRAWERS, suggestionId, UNITS } from "./domain";
+import { CATEGORY_IDS, MAX_DRAWERS, suggestionId, UNITS } from "./domain";
 import { appError, LOCALES, messages } from "./i18n";
 import { zql } from "./zero-schema.gen";
 
@@ -45,6 +45,8 @@ const name = z.string().trim().min(1).max(100);
 const unit = z.enum(UNITS);
 const quantity = z.number().positive().max(100_000);
 const containerNumber = z.number().int().positive().max(1_000_000).nullable();
+// Optional so that app versions from before categories existed keep working; undefined = unchanged.
+const category = z.enum(CATEGORY_IDS).nullable().optional();
 
 export const mutators = defineMutators({
   freezer: {
@@ -117,6 +119,7 @@ export const mutators = defineMutators({
         unit,
         frozenAt: z.number().int(),
         notes: z.string().trim().max(500).nullable(),
+        category,
       }),
       async ({ tx, ctx, args }) => {
         await requireRole(tx, ctx, args.freezerId);
@@ -126,6 +129,7 @@ export const mutators = defineMutators({
         await tx.mutate.item.insert({
           ...args,
           notes: args.notes || null,
+          category: args.category ?? null,
           createdBy: ctx.userID,
           createdAt: Date.now(),
         });
@@ -137,6 +141,7 @@ export const mutators = defineMutators({
           freezerId: args.freezerId,
           name: args.name,
           lastUnit: args.unit,
+          lastCategory: args.category === undefined ? (existing?.lastCategory ?? null) : args.category,
           useCount: (existing?.useCount ?? 0) + 1,
         });
       },
@@ -152,6 +157,7 @@ export const mutators = defineMutators({
         unit,
         frozenAt: z.number().int(),
         notes: z.string().trim().max(500).nullable(),
+        category,
       }),
       async ({ tx, ctx, args }) => {
         const item = await requireItem(tx, ctx, args.id);
@@ -191,6 +197,7 @@ export const mutators = defineMutators({
           unit,
           frozenAt: z.number().int(),
           notes: z.string().trim().max(500).nullable(),
+          category,
           createdAt: z.number().int(),
         }),
         amount: quantity,
@@ -221,6 +228,7 @@ export const mutators = defineMutators({
           containerNumber: container,
           quantity: amount,
           notes: snapshot.notes || null,
+          category: snapshot.category ?? null,
           createdBy: ctx.userID,
         });
       },

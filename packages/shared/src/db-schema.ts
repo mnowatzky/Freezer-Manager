@@ -138,6 +138,8 @@ export const item = pgTable(
     unit: text("unit").notNull(),
     frozenAt: date("frozen_at", { mode: "string" }).notNull(),
     notes: text("notes"),
+    // One of CATEGORIES (domain.ts); null = uncategorized.
+    category: text("category"),
     createdBy: text("created_by")
       .notNull()
       .references(() => user.id),
@@ -159,6 +161,7 @@ export const foodSuggestion = pgTable(
       .references(() => freezer.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     lastUnit: text("last_unit").notNull(),
+    lastCategory: text("last_category"),
     useCount: integer("use_count").notNull(),
   },
   (t) => [index("food_suggestion_freezer_idx").on(t.freezerId)],

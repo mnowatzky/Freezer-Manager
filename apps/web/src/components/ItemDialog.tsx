@@ -1,4 +1,4 @@
-import { todayAsDate, UNITS, type Unit } from "@freezer/shared/domain";
+import { CATEGORY_IDS, isCategory, todayAsDate, UNITS, type Category, type Unit } from "@freezer/shared/domain";
 import { t } from "../lib/i18n";
 import { AnimatePresence, motion, useIsPresent } from "motion/react";
 import { useMemo, useRef, useState } from "react";
@@ -8,6 +8,7 @@ import type { FreezerDetail, ItemRow } from "../lib/freezer-data";
 import { useRemoveWithUndo } from "../lib/undo";
 import { mutators, useCanWrite, useMutate } from "../lib/zero";
 import { motionScheme } from "../theme/motion";
+import { CategoryChips } from "./CategoryChips";
 import { Button, Icon, SelectField, Sheet, TextArea, TextField } from "./m3";
 
 type FormProps = {
@@ -47,6 +48,7 @@ export function ItemForm({ freezer, item, containerNumber = null, onDone }: Form
   const [name, setName] = useState(item?.name ?? "");
   const [quantity, setQuantity] = useState(String(item?.quantity ?? 1));
   const [unit, setUnit] = useState<Unit>((item?.unit as Unit) ?? "piece");
+  const [category, setCategory] = useState<Category | null>(isCategory(item?.category) ? item.category : null);
   const [drawerId, setDrawerId] = useState(defaultDrawer);
   const [frozenAt, setFrozenAt] = useState(dateToInput(item?.frozenAt ?? todayAsDate()));
   const [container, setContainer] = useState(String(item?.containerNumber ?? containerNumber ?? ""));
@@ -75,6 +77,7 @@ export function ItemForm({ freezer, item, containerNumber = null, onDone }: Form
       unit,
       frozenAt: inputToDate(frozenAt),
       notes: notes.trim() || null,
+      category,
     };
     const ok = item
       ? await mutate(mutators.item.update({ id: item.id, ...fields }))
@@ -131,7 +134,10 @@ export function ItemForm({ freezer, item, containerNumber = null, onDone }: Form
                       onMouseDown={(e) => e.preventDefault()}
                       onClick={() => {
                         setName(s.name);
-                        if (!item) setUnit(s.lastUnit as Unit);
+                        if (!item) {
+                          setUnit(s.lastUnit as Unit);
+                          if (isCategory(s.lastCategory)) setCategory(s.lastCategory);
+                        }
                         nameAreaRef.current?.querySelector("input")?.focus();
                       }}
                     >
@@ -153,6 +159,13 @@ export function ItemForm({ freezer, item, containerNumber = null, onDone }: Form
             </motion.div>
           )}
         </AnimatePresence>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <span className="type-label-medium text-on-surface-variant">
+          {t.item.category} ({t.common.optional})
+        </span>
+        <CategoryChips options={CATEGORY_IDS} value={category} onChange={setCategory} label={t.item.category} bleed="px-6" />
       </div>
 
       <div className="grid grid-cols-2 gap-3">

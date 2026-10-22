@@ -1,4 +1,4 @@
-import type { Unit } from "../domain";
+import type { Category, Unit } from "../domain";
 
 // Label for a unit after a quantity (plural unless it is exactly 1).
 const units: Record<Unit, (n: number) => string> = {
@@ -67,6 +67,7 @@ export const de = {
     noItems: "Noch nichts eingefroren.",
     noItemsHint: "Tippe auf „Einfrieren“ oder scanne einen Behälter.",
     noResults: "Nichts gefunden.",
+    filterCategory: "Nach Kategorie filtern",
     itemCount: (n: number) => (n === 1 ? "1 Eintrag" : `${n} Einträge`),
     view: "Ansicht",
   },
@@ -83,6 +84,7 @@ export const de = {
     takeConfirm: "Entnehmen",
     edit: "Bearbeiten",
     removeSuggestion: "Vorschlag entfernen",
+    category: "Kategorie",
     took: (name: string, qty: string) => `${qty} ${name} entnommen`,
     deleted: (name: string) => `„${name}“ gelöscht`,
     restoredWithoutContainer: (n: number) => `Zurückgelegt, aber ohne Behälter ${n}: Der ist inzwischen belegt.`,
@@ -90,6 +92,20 @@ export const de = {
       days < 1 ? "heute" : days < 31 ? `vor ${days} T.` : days < 365 ? `vor ${Math.floor(days / 30)} Mon.` : `vor ${Math.floor(days / 365)} J.`,
   },
   units,
+  categories: {
+    meat: "Fleisch",
+    poultry: "Geflügel",
+    fish: "Fisch",
+    vegetables: "Gemüse",
+    fruit: "Obst",
+    herbs: "Kräuter",
+    baked: "Backwaren",
+    meals: "Gerichte",
+    soups: "Suppen",
+    dairy: "Milchprodukte",
+    desserts: "Desserts",
+    other: "Sonstiges",
+  } satisfies Record<Category, string>,
   container: {
     title: (n: number) => `Behälter ${n}`,
     free: "Dieser Behälter ist leer.",

@@ -1,12 +1,15 @@
+import { CATEGORY_IDS, isCategory, type Category } from "@freezer/shared/domain";
 import { locale, t } from "../lib/i18n";
 import { AnimatePresence, motion, useMotionValueEvent, useScroll } from "motion/react";
 import { useMemo, useRef, useState } from "react";
 import { Navigate, useNavigate } from "react-router";
 import { FullScreenLoading } from "../components/AuthedLayout";
+import { CategoryChips } from "../components/CategoryChips";
 import { ItemDialog } from "../components/ItemDialog";
 import { ItemSheet } from "../components/ItemSheet";
 import { Chip, ConnectedButtonGroup, Fab, Icon, IconButton, ListGroup, ListItem, Sheet, TopAppBar } from "../components/m3";
 import { Scanner } from "../components/Scanner";
+import { CATEGORY_ICONS } from "../lib/categories";
 import { ageLabel, quantityLabel } from "../lib/format";
 import { useFreezerData, type FreezerDetail, type ItemRow } from "../lib/freezer-data";
 import { useCanWrite } from "../lib/zero";
@@ -26,6 +29,7 @@ function FreezerView({ data, freezer }: { data: ReturnType<typeof useFreezerData
   const canWrite = useCanWrite();
   const [view, setView] = useState<View>("drawer");
   const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState<Category | null>(null);
   const [dialog, setDialog] = useState<"freeze" | "scan" | "switch" | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = freezer.items.find((i) => i.id === selectedId);
@@ -49,12 +53,23 @@ function FreezerView({ data, freezer }: { data: ReturnType<typeof useFreezerData
     setFabExtended(extended);
   });
 
+  // Only categories that currently have items get a filter chip. A filter whose last item is gone
+  // is ignored rather than leaving an empty list behind.
+  const categories = useMemo(() => {
+    const present = new Set(freezer.items.map((i) => i.category));
+    return CATEGORY_IDS.filter((c) => present.has(c));
+  }, [freezer.items]);
+  const category = categoryFilter && categories.includes(categoryFilter) ? categoryFilter : null;
+
   const items = useMemo(() => {
     const q = search.trim().toLocaleLowerCase("de");
-    const filtered = q ? freezer.items.filter((i) => i.name.toLocaleLowerCase("de").includes(q)) : [...freezer.items];
+    const filtered = freezer.items.filter(
+      (i) => (!category || i.category === category) && (!q || i.name.toLocaleLowerCase("de").includes(q)),
+    );
     if (view === "name") filtered.sort((a, b) => a.name.localeCompare(b.name, locale));
     return filtered; // already sorted oldest first by the query
-  }, [freezer.items, search, view]);
+  }, [freezer.items, search, category, view]);
+  const filtering = Boolean(search.trim() || category);
 
   return (
     <div className="min-h-dvh pb-40">
@@ -84,6 +99,10 @@ function FreezerView({ data, freezer }: { data: ReturnType<typeof useFreezerData
           />
         </label>
 
+        {categories.length > 0 && (
+          <CategoryChips options={categories} value={category} onChange={setCategoryFilter} label={t.freezer.filterCategory} bleed="px-4" />
+        )}
+
         <ConnectedButtonGroup
           label={t.freezer.view}
           value={view}
@@ -102,7 +121,7 @@ function FreezerView({ data, freezer }: { data: ReturnType<typeof useFreezerData
         ) : view === "drawer" ? (
           freezer.drawers.map((d) => {
             const inDrawer = items.filter((i) => i.drawerId === d.id);
-            if (search && inDrawer.length === 0) return null;
+            if (filtering && inDrawer.length === 0) return null;
             return (
               <motion.section key={d.id} layout="position" transition={motionScheme.defaultSpatial}>
                 <h2 className="type-title-small mt-2 mb-2 flex items-center gap-2 px-1 text-primary">
@@ -162,7 +181,7 @@ function ItemList({ items, onSelect, drawers }: { items: ItemRow[]; onSelect: (i
           <ListItem
             key={item.id}
             onClick={() => onSelect(item.id)}
-            leading={<Monogram name={item.name} />}
+            leading={<Monogram name={item.name} category={item.category} />}
             headline={item.name}
             supporting={
               <>
@@ -178,14 +197,14 @@ function ItemList({ items, onSelect, drawers }: { items: ItemRow[]; onSelect: (i
   );
 }
 
-/** Leading monogram in an Expressive "cookie" shape container. */
-function Monogram({ name }: { name: string }) {
+/** Leading category icon (or the name's first letter) in an Expressive "cookie" shape container. */
+function Monogram({ name, category }: { name: string; category: string | null }) {
   return (
     <span
       className="type-title-medium type-emphasized flex size-10 shrink-0 items-center justify-center bg-secondary-container text-on-secondary-container"
       style={{ borderRadius: "42% 58% 46% 54% / 50% 44% 56% 50%" }}
     >
-      {name.trim().charAt(0).toLocaleUpperCase("de")}
+      {isCategory(category) ? <Icon name={CATEGORY_ICONS[category]} size={22} /> : name.trim().charAt(0).toLocaleUpperCase("de")}
     </span>
   );
 }
