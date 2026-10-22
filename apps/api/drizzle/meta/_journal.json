@@ -36,6 +36,20 @@
       "when": 1792672495826,
       "tag": "0004_push_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792673417810,
+      "tag": "0005_barcodes",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792673418125,
+      "tag": "0006_barcode_publication",
+      "breakpoints": true
     }
   ]
 }

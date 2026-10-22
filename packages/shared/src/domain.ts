@@ -28,6 +28,25 @@ export const isCategory = (value: unknown): value is Category =>
 export const MAX_DRAWERS = 20;
 export const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
+/** EAN-8/13, UPC-A/E and GTIN-14: digits only. */
+export const BARCODE_PATTERN = /^\d{8,14}$/;
+export const barcodeId = (freezerId: string, code: string) => `${freezerId}:${code}`;
+
+/** "750 g", "1,5 l", "33 cl", "2 x 250 g" → a quantity in one of our units; null if not a weight or volume. */
+export function parsePackageSize(text: string | null | undefined): { quantity: number; unit: "g" | "kg" | "ml" | "l" } | null {
+  const m = /^\s*(?:(\d+)\s*[x×]\s*)?(\d+(?:[.,]\d+)?)\s*(g|kg|ml|cl|l)\b/i.exec(text ?? "");
+  if (!m) return null;
+  const count = m[1] ? Number(m[1]) : 1;
+  let quantity = count * Number(m[2]!.replace(",", "."));
+  let unit = m[3]!.toLowerCase();
+  if (unit === "cl") {
+    quantity *= 10;
+    unit = "ml";
+  }
+  if (!(quantity > 0)) return null;
+  return { quantity: Math.round(quantity * 1000) / 1000, unit: unit as "g" | "kg" | "ml" | "l" };
+}
+
 export function suggestionId(freezerId: string, name: string): string {
   return `${freezerId}:${name.trim().toLocaleLowerCase("de")}`;
 }

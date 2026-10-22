@@ -1,8 +1,8 @@
-import { parseContainerCode } from "@freezer/shared/domain";
+import { BARCODE_PATTERN, parseContainerCode } from "@freezer/shared/domain";
 import { t } from "../lib/i18n";
 import { BarcodeDetector, prepareZXingModule } from "barcode-detector/ponyfill";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import wasmUrl from "zxing-wasm/reader/zxing_reader.wasm?url";
 import { motionScheme } from "../theme/motion";
 import { Button, Icon, Sheet, TextField } from "./m3";
@@ -12,27 +12,70 @@ prepareZXingModule({
   overrides: { locateFile: (path: string, prefix: string) => (path.endsWith(".wasm") ? wasmUrl : prefix + path) },
 });
 
-/** Camera QR scanner sheet with manual number entry as an equal alternative. */
-export function Scanner({ open, onResult, onClose }: { open: boolean; onResult: (n: number) => void; onClose: () => void }) {
+// What a scanner looks for: container QR codes (→ number) or product barcodes (→ digits).
+const modes = {
+  container: {
+    formats: ["qr_code"],
+    parse: (text: string) => parseContainerCode(text),
+    manual: () => t.scanner.manual,
+    invalid: () => t.scanner.invalid,
+  },
+  barcode: {
+    // Supported by the bundled ZXing WASM.
+    formats: ["ean_13", "ean_8", "upc_a", "upc_e"],
+    parse: (text: string) => (BARCODE_PATTERN.test(text.trim()) ? text.trim() : null),
+    manual: () => t.scanner.barcodeManual,
+    invalid: () => t.scanner.invalidBarcode,
+  },
+} as const;
+
+export type ScannerMode =
+  | { mode?: "container"; onResult: (n: number) => void }
+  | { mode: "barcode"; onResult: (code: string) => void };
+
+/** Camera scanner sheet (container QR codes by default) with manual entry as an equal alternative. */
+export function Scanner({ open, onClose, ...props }: ScannerMode & { open: boolean; onClose: () => void }) {
   return (
     <Sheet open={open} title={t.scanner.title} onClose={onClose}>
-      <ScannerBody onResult={onResult} />
+      <ScannerView {...props} />
     </Sheet>
   );
 }
 
-function ScannerBody({ onResult }: { onResult: (n: number) => void }) {
+/** The scanner itself, e.g. to show it inside another sheet. */
+export function ScannerView(props: ScannerMode) {
+  const mode = modes[props.mode ?? "container"];
+  // Each mode's parser matches its callback's argument type.
+  const onResult = props.onResult as (value: string | number) => void;
+  return <ScannerBody formats={mode.formats} parse={mode.parse} manualLabel={mode.manual()} invalidText={mode.invalid()} onResult={onResult} />;
+}
+
+function ScannerBody({
+  formats,
+  parse,
+  manualLabel,
+  invalidText,
+  onResult,
+}: {
+  formats: readonly ("qr_code" | "ean_13" | "ean_8" | "upc_a" | "upc_e")[];
+  parse: (text: string) => string | number | null;
+  manualLabel: string;
+  invalidText: string;
+  onResult: (value: string | number) => void;
+}) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [cameraError, setCameraError] = useState(false);
   const [ready, setReady] = useState(false);
   const [manual, setManual] = useState("");
   const [invalid, setInvalid] = useState(false);
+  // Stable for the camera effect, so a re-rendering parent doesn't restart the camera.
+  const emit = useEffectEvent(onResult);
 
   useEffect(() => {
     let stream: MediaStream | undefined;
     let raf = 0;
     let cancelled = false;
-    const detector = new BarcodeDetector({ formats: ["qr_code"] });
+    const detector = new BarcodeDetector({ formats: [...formats] });
 
     void (async () => {
       try {
@@ -46,8 +89,8 @@ function ScannerBody({ onResult }: { onResult: (n: number) => void }) {
           try {
             const codes = await detector.detect(videoRef.current);
             for (const code of codes) {
-              const n = parseContainerCode(code.rawValue);
-              if (n !== null) return onResult(n);
+              const value = parse(code.rawValue);
+              if (value !== null) return emit(value);
               setInvalid(true);
             }
           } catch {
@@ -66,13 +109,13 @@ function ScannerBody({ onResult }: { onResult: (n: number) => void }) {
       cancelAnimationFrame(raf);
       stream?.getTracks().forEach((track) => track.stop());
     };
-  }, [onResult]);
+  }, [formats, parse]);
 
   const submitManual = (e: React.FormEvent) => {
     e.preventDefault();
-    const n = parseContainerCode(manual);
-    if (n === null) setInvalid(true);
-    else onResult(n);
+    const value = parse(manual);
+    if (value === null) setInvalid(true);
+    else onResult(value);
   };
 
   return (
@@ -103,14 +146,14 @@ function ScannerBody({ onResult }: { onResult: (n: number) => void }) {
             exit={{ opacity: 0, height: 0 }}
             transition={motionScheme.defaultSpatial}
           >
-            {t.scanner.invalid}
+            {invalidText}
           </motion.p>
         )}
       </AnimatePresence>
       <form onSubmit={submitManual} className="flex items-start gap-2">
         <TextField
           className="flex-1"
-          label={t.scanner.manual}
+          label={manualLabel}
           leadingIcon="keyboard"
           inputMode="numeric"
           pattern="[0-9]*"
