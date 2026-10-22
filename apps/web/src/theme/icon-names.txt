@@ -1,5 +1,6 @@
 ac_unit
 add
+api
 arrow_back
 arrow_forward
 bakery_dining
@@ -26,6 +27,7 @@ hourglass_bottom
 icecream
 kebab_dining
 key
+key_off
 keyboard
 kitchen
 local_drink

@@ -9,6 +9,7 @@ A self-hosted, realtime, multi-user PWA that tracks what's in your freezer: whic
 - **Undo** for taking out and deleting, **categories**, and **best-before dates** with an "Eat soon" list
 - **Barcode scanning:** scan a product to fill in its name and category, from the freezer's own memory or [Open Food Facts](https://world.openfoodfacts.org/)
 - **Export and import** as JSON (backup) or CSV (spreadsheet)
+- **API and Home Assistant:** personal API tokens for a small REST API, with a ready-made Home Assistant setup
 - **Push notifications** a week before an item's best-before date and on the day itself (optional)
 - **Installable PWA** for Android, iOS and desktop, built on Material 3 Expressive
 - **English and German:** the app follows the browser's language and falls back to English
@@ -18,6 +19,7 @@ A self-hosted, realtime, multi-user PWA that tracks what's in your freezer: whic
 - [Self-hosting with Docker Compose](#self-hosting-with-docker-compose)
 - [How it works](#how-it-works)
 - [Development](#development)
+- [API and Home Assistant](#api-and-home-assistant)
 - [QR stickers and scanning](#qr-stickers-and-scanning)
 - [Translations](#translations)
 - [Design](#design-material-3-expressive)
@@ -380,6 +382,116 @@ git push --follow-tags
 ```
 
 [`release.yml`](.github/workflows/release.yml) then runs the checks again, pushes `api-0.2.0`, `web-0.2.0`, `api-latest` and `web-latest` to Docker Hub (`linux/amd64` and `linux/arm64`) and creates a GitHub release with generated notes. It needs the repository secrets `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` (a Docker Hub access token with read & write scope).
+
+## API and Home Assistant
+
+Create a token under **Settings → API tokens**. It is shown once; only a hash is stored. A token acts on your behalf in all freezers you're a member of, with the same permissions as the app. "Read only" tokens can't change anything. Tokens are rate-limited to 120 requests per minute.
+
+All requests send `Authorization: Bearer fm_…`. Dates are `YYYY-MM-DD`.
+
+| Request | Scope | What it does |
+| --- | --- | --- |
+| `GET /api/v1/freezers` | read | Your freezers: `[{ id, name }]` |
+| `GET /api/v1/freezers/:id/items?category=&soon=true` | read | Items with drawer, best-before date, `daysLeft` and `freshness` (`ok`, `soon`, `expired`) |
+| `GET /api/v1/freezers/:id/summary` | read | `{ items, soon, expired, byCategory, nextExpiring }` |
+| `POST /api/v1/freezers/:id/items` | write | Freeze something: `{ name, quantity?, unit?, category?, drawer?, containerNumber?, frozenAt?, bestBefore?, notes?, barcode? }`. `drawer` is a name or ID (default: the first drawer); unit and category default to what the food was last frozen as. |
+| `POST /api/v1/items/:id/take` | write | Take out `{ amount? }` (default: all) |
+| `POST /api/v1/freezers/:id/take` | write | Take out by name `{ name, amount? }` (default 1), from the oldest items first |
+| `DELETE /api/v1/items/:id` | write | Delete an item |
+
+Changes show up in the apps right away, like any other change. Find your freezer's ID with:
+
+```bash
+curl -H "Authorization: Bearer fm_…" https://freezer.example.com/api/v1/freezers
+```
+
+### Home Assistant
+
+No custom integration needed. Put the token into `secrets.yaml` as `freezer_token: "Bearer fm_…"`, then add to `configuration.yaml` (replace the host and `<freezer-id>`):
+
+```yaml
+rest:
+  - resource: https://freezer.example.com/api/v1/freezers/<freezer-id>/summary
+    headers:
+      Authorization: !secret freezer_token
+    scan_interval: 900
+    sensor:
+      - name: Freezer eat soon
+        unique_id: freezer_eat_soon
+        icon: mdi:fridge-alert
+        # Items due within a week, plus those already past their date.
+        value_template: "{{ value_json.soon + value_json.expired }}"
+        json_attributes: [items, soon, expired, byCategory, nextExpiring]
+
+rest_command:
+  freezer_add:
+    url: https://freezer.example.com/api/v1/freezers/<freezer-id>/items
+    method: post
+    headers:
+      Authorization: !secret freezer_token
+    content_type: application/json
+    payload: >-
+      {"name": {{ food | to_json }}, "quantity": {{ quantity | default(1) | float }}
+      {%- if drawer %}, "drawer": {{ drawer | to_json }}{% endif %}}
+  freezer_take:
+    url: https://freezer.example.com/api/v1/freezers/<freezer-id>/take
+    method: post
+    headers:
+      Authorization: !secret freezer_token
+    content_type: application/json
+    payload: '{"name": {{ food | to_json }}, "amount": {{ quantity | default(1) | float }}}'
+```
+
+The sensor's state is the number of items to eat soon; the attribute `nextExpiring` lists them with `name`, `daysLeft` and `drawer`, e.g. for a dashboard card or an automation.
+
+**Voice:** with an [Assist custom sentence](https://www.home-assistant.io/voice_control/custom_sentences/), "I froze 2 Bolognese in drawer 3" works with any Assist device, and through Home Assistant's Alexa or Google integration too. `config/custom_sentences/en/freezer.yaml`:
+
+```yaml
+language: "en"
+intents:
+  FreezerAdd:
+    data:
+      - sentences:
+          - "I froze {quantity} {food} in drawer {drawer}"
+          - "I froze {quantity} {food}"
+  FreezerTake:
+    data:
+      - sentences:
+          - "I took {quantity} {food} [out] of the freezer"
+lists:
+  quantity:
+    range: { from: 1, to: 20 }
+  food:
+    wildcard: true
+  drawer:
+    wildcard: true
+```
+
+and in `configuration.yaml`:
+
+```yaml
+intent_script:
+  FreezerAdd:
+    action:
+      - action: rest_command.freezer_add
+        data:
+          food: "{{ food }}"
+          quantity: "{{ quantity }}"
+          # Drawers are matched by name; adjust this to your drawer names.
+          drawer: "{{ 'Drawer ' ~ drawer if drawer is defined else '' }}"
+    speech:
+      text: "Froze {{ quantity }} {{ food }}."
+  FreezerTake:
+    action:
+      - action: rest_command.freezer_take
+        data:
+          food: "{{ food }}"
+          quantity: "{{ quantity }}"
+    speech:
+      text: "Took {{ quantity }} {{ food }} out."
+```
+
+For German, put the same file under `custom_sentences/de/` with `language: "de"` and sentences like `"ich habe {quantity} {food} in Schublade {drawer} eingefroren"`.
 
 ## QR stickers and scanning
 

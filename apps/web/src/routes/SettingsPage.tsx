@@ -11,6 +11,7 @@ import { Button, Icon, IconButton, ListGroup, ListItem, Switch, TopAppBar } from
 import { authClient, signOut } from "../lib/auth-client";
 import { formatDate } from "../lib/format";
 import { useFreezerData, type FreezerDetail } from "../lib/freezer-data";
+import { ApiTokens } from "../components/ApiTokens";
 import { ImportSheet } from "../components/ImportSheet";
 import { exportFreezer } from "../lib/export";
 import { usePush } from "../lib/push";
@@ -116,6 +117,14 @@ function Settings({ freezer, userId, onSwitchFreezer }: { freezer: FreezerDetail
         )}
 
         <DataSection freezer={freezer} onSwitchFreezer={onSwitchFreezer} />
+
+        <ApiTokens
+          title={
+            <SectionTitle icon="api" className="mb-0">
+              {t.tokens.title}
+            </SectionTitle>
+          }
+        />
 
         <Notifications />
 

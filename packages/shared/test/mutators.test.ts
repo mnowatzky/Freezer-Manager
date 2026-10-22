@@ -18,6 +18,7 @@ const migrationsDir = new URL("../../../apps/api/drizzle/", import.meta.url);
 const journal = JSON.parse(readFileSync(new URL("meta/_journal.json", migrationsDir), "utf8")) as { entries: { tag: string }[] };
 const migrations = journal.entries.map((e) => readFileSync(new URL(`${e.tag}.sql`, migrationsDir), "utf8"));
 
+let db: ReturnType<typeof drizzle<typeof dbSchema>>;
 let zdb: ReturnType<typeof zeroDrizzle<typeof schema, ReturnType<typeof drizzle<typeof dbSchema>>>>;
 
 async function as(userID: string, run: (m: typeof mutators) => { fn: Function; args: unknown }) {
@@ -34,7 +35,7 @@ beforeEach(async () => {
   const pg = new PGlite();
   for (const migration of migrations)
     for (const stmt of migration.split("--> statement-breakpoint")) await pg.exec(stmt);
-  const db = drizzle(pg, { schema: dbSchema });
+  db = drizzle(pg, { schema: dbSchema });
   for (const id of ["alice", "bob", "eve"])
     await db.insert(dbSchema.user).values({ id, name: id, email: `${id}@example.com` });
   zdb = zeroDrizzle(schema, db);
@@ -482,6 +483,23 @@ describe("queries", () => {
     expect(await run("freezers.invites", { freezerId: "f1" }, "alice")).toMatchObject([{ token: "secret-token" }]);
     await as("alice", (m) => call(m.invite.revoke({ inviteId: "inv1" })));
     expect(await run("freezers.invites", { freezerId: "f1" }, "alice")).toEqual([]);
+  });
+});
+
+describe("API tokens", () => {
+  beforeEach(async () => {
+    // Created by the REST API in reality; token_hash isn't part of the Zero schema.
+    await db.insert(dbSchema.apiToken).values({ id: "t1", userId: "bob", name: "Home Assistant", tokenHash: "hash", prefix: "fm_abcd", scope: "read", createdAt: new Date() });
+  });
+
+  it("only the owner sees and revokes a token", async () => {
+    const run = (userID: string) =>
+      zdb.run(mustGetQuery(queries, "apiTokens.mine").fn({ args: undefined, ctx: { userID } }) as Parameters<typeof zdb.run>[0]);
+    expect(await run("bob")).toMatchObject([{ id: "t1", name: "Home Assistant" }]);
+    expect(await run("alice")).toEqual([]);
+    await expect(as("alice", (m) => call(m.apiToken.revoke({ id: "t1" })))).rejects.toThrow(/Not found/);
+    await as("bob", (m) => call(m.apiToken.revoke({ id: "t1" })));
+    expect(await run("bob")).toEqual([]);
   });
 });
 

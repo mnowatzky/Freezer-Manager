@@ -378,6 +378,16 @@ export const mutators = defineMutators({
     ),
   },
 
+  // API tokens are created via the REST API (the token is generated and hashed on the server and
+  // shown once). Revoking is a plain update, only by the token's owner.
+  apiToken: {
+    revoke: defineMutator(z.object({ id }), async ({ tx, ctx, args }) => {
+      const token = await tx.run(zql.apiToken.where("id", args.id).one());
+      if (!token || token.userId !== ctx.userID) throw appError("notFound");
+      await tx.mutate.apiToken.update({ id: token.id, revokedAt: Date.now() });
+    }),
+  },
+
   suggestion: {
     delete: defineMutator(z.object({ id: z.string().min(1).max(200) }), async ({ tx, ctx, args }) => {
       const s = await tx.run(zql.foodSuggestion.where("id", args.id).one());

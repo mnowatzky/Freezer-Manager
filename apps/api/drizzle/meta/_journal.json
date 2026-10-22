@@ -50,6 +50,20 @@
       "when": 1792673418125,
       "tag": "0006_barcode_publication",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792674154406,
+      "tag": "0007_api_tokens",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792674154719,
+      "tag": "0008_api_token_publication",
+      "breakpoints": true
     }
   ]
 }
