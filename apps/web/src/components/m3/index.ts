@@ -7,5 +7,6 @@ export { Icon } from "./Icon";
 export { ListGroup, ListItem } from "./List";
 export { LoadingIndicator } from "./LoadingIndicator";
 export { Sheet } from "./Sheet";
+export { Switch } from "./Switch";
 export { SelectField, TextArea, TextField } from "./TextField";
 export { TopAppBar } from "./TopAppBar";

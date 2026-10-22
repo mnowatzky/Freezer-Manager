@@ -193,6 +193,42 @@ export const invite = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// Push notifications (server-only: not in the zero_app publication, not in the Zero schema)
+// ---------------------------------------------------------------------------
+
+// One Web Push subscription per device (endpoint). `locale` is the app language on that device.
+export const pushSubscription = pgTable(
+  "push_subscription",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    endpoint: text("endpoint").notNull().unique(),
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    locale: text("locale").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    lastSuccessAt: timestamp("last_success_at", { withTimezone: true }),
+  },
+  (t) => [index("push_subscription_user_idx").on(t.userId)],
+);
+
+// Which best-before date each kind of notification ("soon": a week before, "due": on the day) was
+// already sent for. A changed date no longer matches, so the next run notifies again.
+export const expiryNotice = pgTable(
+  "expiry_notice",
+  {
+    itemId: text("item_id")
+      .notNull()
+      .references(() => item.id, { onDelete: "cascade" }),
+    kind: text("kind").$type<"soon" | "due">().notNull(),
+    bestBefore: date("best_before", { mode: "string" }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.itemId, t.kind] })],
+);
+
+// ---------------------------------------------------------------------------
 // Relations (drizzle-zero turns these into Zero relationships)
 // ---------------------------------------------------------------------------
 

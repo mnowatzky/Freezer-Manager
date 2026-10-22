@@ -146,6 +146,10 @@ export const en: Messages = {
     labels: "Print QR labels",
     appVersion: (v: string) => `App ${v}`,
     serverVersion: (v: string) => `Server ${v}`,
+    notifications: "Notifications",
+    notificationsHint: "On this device, a week before the best-before date and on the day itself",
+    notificationsBlocked: "Notifications are blocked for this site. Allow them in your browser settings.",
+    notificationsInstall: "On iPhone and iPad, notifications only work in the installed app (iOS 16.4+): Share → “Add to Home Screen”.",
     versionMismatch: "App and server versions differ. Close and reopen the app to update it.",
   },
   join: {
@@ -164,6 +168,9 @@ export const en: Messages = {
     to: "To",
     size: "Size (cm)",
     print: "Print",
+  },
+  push: {
+    title: (n: number) => (n === 1 ? "1 item should be eaten soon" : `${n} items should be eaten soon`),
   },
   errorPage: {
     title: "Oops, something went wrong.",

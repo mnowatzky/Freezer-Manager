@@ -6,6 +6,8 @@ A self-hosted, realtime, multi-user PWA that tracks what's in your freezer: whic
 - **QR stickers** for reusable containers: scan one with the phone camera to see what's inside or to freeze something new
 - **Passkey login** through [Pocket ID](https://pocket-id.org/), with no passwords to manage
 - **Invites:** share a freezer through a link; people without an account can sign up through it
+- **Undo** for taking out and deleting, **categories**, and **best-before dates** with an "Eat soon" list
+- **Push notifications** a week before an item's best-before date and on the day itself (optional)
 - **Installable PWA** for Android, iOS and desktop, built on Material 3 Expressive
 - **English and German:** the app follows the browser's language and falls back to English
 
@@ -92,6 +94,12 @@ Settings worth knowing:
   docker network connect npm_proxy <proxy-container>
   ```
 - **`REGISTRATION_CODE` (optional):** lets people without an invite create an account on the login page ("No account yet?"). Anyone who knows the code can register, so hand it out personally. Wrong attempts are rate-limited. Leave it empty to make the app invite-only.
+
+- **Push notifications (optional):** every member of a freezer gets a notification a week before an item's best-before date and on the day itself. Generate the keys once and put them into `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY`, and set `VAPID_SUBJECT` to a contact such as `mailto:you@example.com`:
+  ```bash
+  npx web-push generate-vapid-keys
+  ```
+  The notifications go out once a day after `NOTIFY_HOUR` (default 9) in the time zone `TZ` (default UTC, e.g. `Europe/Berlin`). Each person turns them on per device under **Settings**. On iPhone and iPad this needs the installed app (iOS 16.4 or later). Without the keys, the switch is hidden. If you change the keys, devices have to turn notifications on again.
 
 Keep a copy of `.env` somewhere safe. If you lose `BETTER_AUTH_SECRET`, all sessions become invalid.
 
@@ -217,6 +225,13 @@ If you lose `POCKET_ID_ENCRYPTION_KEY`, the instance becomes unusable.
    - by entering the `REGISTRATION_CODE` on the login page, if one is set. They then create their own freezer.
 5. **Invites** need work that can only happen on the server: random tokens, and a Pocket ID signup link created through the Pocket ID admin API. They therefore use small REST endpoints. The invite rows themselves sync through Zero.
 6. **CSRF:** the API rejects state-changing requests to its own endpoints unless they come from the web app's origin. Better Auth checks `/api/auth` itself, and the zero-cache API key protects `/api/zero`.
+
+### Push notifications
+
+- **Subscriptions:** the switch in Settings asks for permission, subscribes the device with the server's VAPID public key, and posts the subscription to `/api/push/subscriptions`. The API only accepts endpoints of the browsers' push services (Google, Apple, Mozilla, Microsoft), because it sends requests to them. Signing out removes the device's subscription.
+- **The job** (`apps/api/src/expiry-job.ts`) checks every hour and runs once a day after `NOTIFY_HOUR`. It collects items whose best-before date is at most a week away ("soon") or is today ("due"), and sends each member of the freezer one notification per device, in the language that device uses. The `expiry_notice` table records which date each kind was sent for, so a changed date notifies again. Subscriptions the push service reports as gone (404/410) are deleted. With several API replicas, an advisory lock lets only one run at a time.
+- **The service worker** (`apps/web/src/sw.ts`, built by `vite-plugin-pwa` in `injectManifest` mode) shows the notification, and a tap opens the app on the "Eat soon" list.
+- `push_subscription` and `expiry_notice` stay on the server: they are not part of the `zero_app` publication.
 
 ## Development
 
