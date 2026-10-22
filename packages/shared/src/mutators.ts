@@ -175,6 +175,56 @@ export const mutators = defineMutators({
       await requireItem(tx, ctx, args.id);
       await tx.mutate.item.delete({ id: args.id });
     }),
+
+    // Undo for take/delete: puts `amount` back. If the item still exists (a partial take, possibly
+    // with more taken by someone else since), its quantity grows; otherwise the snapshot is
+    // re-inserted. A container number that was reused meanwhile is dropped instead of failing
+    // (Zero mutators can't return values, so the client checks for that itself to tell the user).
+    putBack: defineMutator(
+      z.object({
+        snapshot: z.object({
+          id,
+          freezerId: id,
+          drawerId: id,
+          containerNumber,
+          name,
+          unit,
+          frozenAt: z.number().int(),
+          notes: z.string().trim().max(500).nullable(),
+          createdAt: z.number().int(),
+        }),
+        amount: quantity,
+      }),
+      async ({ tx, ctx, args: { snapshot, amount } }) => {
+        await requireRole(tx, ctx, snapshot.freezerId);
+        const existing = await tx.run(zql.item.where("id", snapshot.id).one());
+        if (existing) {
+          if (existing.freezerId !== snapshot.freezerId) throw appError("notFound");
+          const total = Math.round((existing.quantity + amount) * 1000) / 1000;
+          if (total > 100_000) throw appError("invalidAmount");
+          await tx.mutate.item.update({ id: existing.id, quantity: total });
+          return;
+        }
+
+        await requireDrawerInFreezer(tx, snapshot.drawerId, snapshot.freezerId);
+        let container = snapshot.containerNumber;
+        if (container !== null) {
+          const occupant = await tx.run(
+            zql.item.where("freezerId", snapshot.freezerId).where("containerNumber", container).one(),
+          );
+          if (occupant) container = null;
+        }
+        // createdBy comes from the session, never from the (client-supplied) snapshot.
+        // The food suggestion is left alone: putting something back isn't a new use.
+        await tx.mutate.item.insert({
+          ...snapshot,
+          containerNumber: container,
+          quantity: amount,
+          notes: snapshot.notes || null,
+          createdBy: ctx.userID,
+        });
+      },
+    ),
   },
 
   suggestion: {

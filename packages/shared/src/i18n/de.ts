@@ -18,6 +18,7 @@ export const de = {
     cancel: "Abbrechen",
     save: "Speichern",
     delete: "Löschen",
+    undo: "Rückgängig",
     close: "Schließen",
     back: "Zurück",
     loading: "Lädt …",
@@ -82,6 +83,9 @@ export const de = {
     takeConfirm: "Entnehmen",
     edit: "Bearbeiten",
     removeSuggestion: "Vorschlag entfernen",
+    took: (name: string, qty: string) => `${qty} ${name} entnommen`,
+    deleted: (name: string) => `„${name}“ gelöscht`,
+    restoredWithoutContainer: (n: number) => `Zurückgelegt, aber ohne Behälter ${n}: Der ist inzwischen belegt.`,
     age: (days: number) =>
       days < 1 ? "heute" : days < 31 ? `vor ${days} T.` : days < 365 ? `vor ${Math.floor(days / 30)} Mon.` : `vor ${Math.floor(days / 365)} J.`,
   },
