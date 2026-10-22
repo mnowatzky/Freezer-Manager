@@ -9,6 +9,7 @@
     "./domain": "./src/domain.ts",
     "./queries": "./src/queries.ts",
     "./mutators": "./src/mutators.ts",
+    "./import": "./src/import.ts",
     "./i18n": "./src/i18n/index.ts",
     "./build-info": "./build-info.ts"
   },

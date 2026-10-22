@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import * as dbSchema from "../src/db-schema";
 import { todayAsDate } from "../src/domain";
 import { de, errorMessage } from "../src/i18n";
+import { buildExport, MAX_IMPORT_ITEMS, parseImport, type ImportItem } from "../src/import";
 import { mutators } from "../src/mutators";
 import { queries } from "../src/queries";
 import { schema, zql } from "../src/zero-schema.gen";
@@ -283,6 +284,93 @@ describe("barcodes", () => {
     expect(detail.barcodes).toHaveLength(1);
     await as("alice", (m) => call(m.freezer.delete({ freezerId: "f1" })));
     expect(await barcodes()).toHaveLength(0);
+  });
+});
+
+describe("import", () => {
+  const item = (over: Partial<ImportItem> = {}): ImportItem => ({
+    id: crypto.randomUUID(),
+    name: "Gulasch",
+    quantity: 2,
+    unit: "portion",
+    category: "meals",
+    drawer: "Schublade 1",
+    containerNumber: null,
+    frozenAt: Date.UTC(2026, 9, 1),
+    notes: null,
+    ...over,
+  });
+  const run = (user: string, args: Record<string, unknown>) =>
+    as(user, (m) => call(m.freezer.import({ freezerId: "f1", drawers: [], newDrawerIds: [], items: [], ...args })));
+  const items = () => zdb.run(zql.item.where("freezerId", "f1"));
+  const drawers = () => zdb.run(zql.drawer.where("freezerId", "f1").orderBy("sortOrder", "asc"));
+
+  it("is allowed for members, not for others", async () => {
+    await expect(run("eve", { items: [item()] })).rejects.toThrow(/No access/);
+    await run("bob", { items: [item()] });
+    expect(await items()).toMatchObject([{ name: "Gulasch", createdBy: "bob" }]);
+  });
+
+  it("matches drawers by name and creates missing ones", async () => {
+    await run("bob", {
+      drawers: ["schublade 2", "Tür"],
+      newDrawerIds: ["n1", "n2"],
+      items: [item({ drawer: "SCHUBLADE 2" }), item({ drawer: "Tür" }), item({ drawer: "" })],
+    });
+    expect((await drawers()).map((d) => [d.id, d.name, d.sortOrder])).toEqual([
+      ["d1", "Schublade 1", 0],
+      ["d2", "Schublade 2", 1],
+      ["n1", "Tür", 2],
+    ]);
+    expect((await items()).map((i) => i.drawerId).sort()).toEqual(["d1", "d2", "n1"]);
+  });
+
+  it("imports items whose container number is taken without one", async () => {
+    await as("alice", (m) => call(m.item.add(addArgs({ containerNumber: 5 }))));
+    await run("alice", { items: [item({ containerNumber: 5 }), item({ containerNumber: 6 }), item({ containerNumber: 6 })] });
+    expect((await items()).map((i) => i.containerNumber).sort((a, b) => (a ?? Infinity) - (b ?? Infinity))).toEqual([5, 6, null, null]);
+  });
+
+  it("fills in best-before dates when the file has none, keeps explicit ones", async () => {
+    await run("alice", { items: [item({ id: "a" }), item({ id: "b", bestBefore: null }), item({ id: "c", bestBefore: Date.UTC(2026, 11, 24) })] });
+    const byId = Object.fromEntries((await items()).map((i) => [i.id, i.bestBefore]));
+    expect(byId).toEqual({ a: Date.UTC(2027, 0, 1), b: null, c: Date.UTC(2026, 11, 24) });
+  });
+
+  it("turns CSV food names into suggestions", async () => {
+    await run("alice", { items: [item(), item(), item({ name: "Brot", unit: "piece", category: "baked" })] });
+    const s = await zdb.run(zql.foodSuggestion.where("freezerId", "f1").orderBy("name", "asc"));
+    expect(s.map((x) => [x.name, x.useCount, x.lastCategory])).toEqual([
+      ["Brot", 1, "baked"],
+      ["Gulasch", 2, "meals"],
+    ]);
+  });
+
+  it("takes at most MAX_IMPORT_ITEMS rows per call", async () => {
+    const many = Array.from({ length: MAX_IMPORT_ITEMS + 1 }, () => item());
+    await expect(run("alice", { items: many })).rejects.toThrow();
+    expect(await items()).toHaveLength(0);
+  });
+
+  it("restores an export as a new freezer, with suggestions and barcodes", async () => {
+    await as("alice", (m) => call(m.item.add(addArgs({ category: "meat", barcode: "4001234567890", drawerId: "d2" }))));
+    const detail = (await zdb.run(
+      mustGetQuery(queries, "freezers.detail").fn({ args: { freezerId: "f1" }, ctx: { userID: "alice" } }) as Parameters<typeof zdb.run>[0],
+    )) as Parameters<typeof buildExport>[0];
+    const parsed = parseImport(JSON.stringify(buildExport(detail)));
+
+    await as("bob", (m) =>
+      call(m.freezer.create({ id: "f9", name: parsed.freezerName!, drawerIds: ["x1", "x2"], drawerNames: parsed.drawers })),
+    );
+    await as("bob", (m) =>
+      call(m.freezer.import({ freezerId: "f9", drawers: parsed.drawers, newDrawerIds: [], items: parsed.items.map((i) => ({ ...i, id: `copy-${i.name}` })), suggestions: parsed.suggestions, barcodes: parsed.barcodes })),
+    );
+    expect((await zdb.run(zql.drawer.where("freezerId", "f9").orderBy("sortOrder", "asc"))).map((d) => d.name)).toEqual(["Schublade 1", "Schublade 2"]);
+    expect(await zdb.run(zql.item.where("freezerId", "f9"))).toMatchObject([
+      { name: "Frikadellen", drawerId: "x2", containerNumber: 5, category: "meat", createdBy: "bob" },
+    ]);
+    expect(await zdb.run(zql.foodSuggestion.where("freezerId", "f9"))).toMatchObject([{ name: "Frikadellen", useCount: 1, lastCategory: "meat" }]);
+    expect(await zdb.run(zql.barcode.where("freezerId", "f9"))).toMatchObject([{ code: "4001234567890", name: "Frikadellen" }]);
   });
 });
 

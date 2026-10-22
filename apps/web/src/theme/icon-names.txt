@@ -11,8 +11,10 @@ check
 close
 cloud_off
 content_copy
+data_object
 delete
 dinner_dining
+download
 edit
 egg
 error
@@ -48,3 +50,6 @@ shelves
 sort_by_alpha
 soup_kitchen
 spa
+table_view
+upload
+warning

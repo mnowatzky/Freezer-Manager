@@ -8,6 +8,7 @@ A self-hosted, realtime, multi-user PWA that tracks what's in your freezer: whic
 - **Invites:** share a freezer through a link; people without an account can sign up through it
 - **Undo** for taking out and deleting, **categories**, and **best-before dates** with an "Eat soon" list
 - **Barcode scanning:** scan a product to fill in its name and category, from the freezer's own memory or [Open Food Facts](https://world.openfoodfacts.org/)
+- **Export and import** as JSON (backup) or CSV (spreadsheet)
 - **Push notifications** a week before an item's best-before date and on the day itself (optional)
 - **Installable PWA** for Android, iOS and desktop, built on Material 3 Expressive
 - **English and German:** the app follows the browser's language and falls back to English
@@ -176,6 +177,10 @@ docker compose exec -T postgres pg_dump -U freezer freezer | gzip > freezer-$(da
 ```
 
 The `zero-replica` volume is a cache that zero-cache rebuilds by itself. If you use the bundled Pocket ID, also back up the `pocket-id-data` volume and `POCKET_ID_ENCRYPTION_KEY`.
+
+**Export and import in the app** are a different thing: under **Settings → Data**, any member can download one freezer as JSON (items, drawers, remembered foods and barcodes) or as a CSV spreadsheet, and import such a file again, into the same freezer, another one, or a new one. That covers a user's own data, for example to move to another instance or to fill a freezer from a spreadsheet. It doesn't replace `pg_dump`: accounts, members, invites and other freezers aren't part of it.
+
+A CSV for import needs a `name` column; `quantity`, `unit`, `category`, `drawer`, `container`, `frozen_at`, `best_before` and `notes` are optional. Units and categories can be written in English or German ("Stück", "Fleisch"), dates as `2026-10-22` or `22.10.2026`, and the separator can be `;`, `,` or a tab. Without a `best_before` column, dates are filled in from the food's storage time as when freezing in the app. The preview shows which rows are skipped and why, which drawers will be created, and which container numbers are already taken (those items are imported without a number).
 
 ### Optional: bundled Pocket ID
 
