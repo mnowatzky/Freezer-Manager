@@ -54,6 +54,19 @@ services:
     volumes: [pocket-id-data:/app/data]
     restart: unless-stopped
 
+  # Optional, for trying the public API with Home Assistant (README → API and Home Assistant):
+  #   docker compose -f docker-compose.dev.yml --profile home-assistant up -d home-assistant
+  # then http://localhost:8123. Config: dev/home-assistant/ (secrets.yaml via write-secrets.sh).
+  home-assistant:
+    image: ghcr.io/home-assistant/home-assistant:2026.10.2
+    profiles: [home-assistant]
+    ports: ["8123:8123"]
+    environment:
+      TZ: ${TZ:-Europe/Berlin}
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    volumes: ["./dev/home-assistant:/config"]
+    restart: unless-stopped
+
 volumes:
   pgdata:
   zero-replica:

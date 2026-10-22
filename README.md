@@ -306,6 +306,14 @@ cp .env.example .env
 
 Changes in one window now appear in the other immediately.
 
+### Trying the API with Home Assistant
+
+`docker-compose.dev.yml` has an optional Home Assistant (profile `home-assistant`) whose configuration in `dev/home-assistant/` is the example from [API and Home Assistant](#api-and-home-assistant):
+
+1. With `pnpm dev` running, create a read/write token under **Settings → API tokens**.
+2. `dev/home-assistant/write-secrets.sh fm_…` writes the token and your first freezer's URLs to `dev/home-assistant/secrets.yaml` (pass a freezer ID as the second argument for another one).
+3. `docker compose -f docker-compose.dev.yml --profile home-assistant up -d home-assistant`, then open <http://localhost:8123> and create the Home Assistant account. Its state stays in `dev/home-assistant/` and isn't committed.
+
 ### Ports (dev)
 
 | Service | URL |
@@ -315,6 +323,7 @@ Changes in one window now appear in the other immediately.
 | zero-cache | http://localhost:4848 |
 | Pocket ID | http://localhost:1411 |
 | Postgres | localhost:5432 (`freezer` / `freezer`) |
+| Home Assistant (optional, profile `home-assistant`) | http://localhost:8123 |
 
 ### Testing on a phone (Tailscale Serve)
 
@@ -394,7 +403,7 @@ All requests send `Authorization: Bearer fm_…`. Dates are `YYYY-MM-DD`.
 | `GET /api/v1/freezers` | read | Your freezers: `[{ id, name }]` |
 | `GET /api/v1/freezers/:id/items?category=&soon=true` | read | Items with drawer, best-before date, `daysLeft` and `freshness` (`ok`, `soon`, `expired`) |
 | `GET /api/v1/freezers/:id/summary` | read | `{ items, soon, expired, byCategory, nextExpiring }` |
-| `POST /api/v1/freezers/:id/items` | write | Freeze something: `{ name, quantity?, unit?, category?, drawer?, containerNumber?, frozenAt?, bestBefore?, notes?, barcode? }`. `drawer` is a name or ID (default: the first drawer); unit and category default to what the food was last frozen as. |
+| `POST /api/v1/freezers/:id/items` | write | Freeze something: `{ name, quantity?, unit?, category?, drawer?, containerNumber?, frozenAt?, bestBefore?, notes?, barcode? }`. `drawer` is a name, ID or position (`3` = third drawer; default: the first drawer); unit and category default to what the food was last frozen as. |
 | `POST /api/v1/items/:id/take` | write | Take out `{ amount? }` (default: all) |
 | `POST /api/v1/freezers/:id/take` | write | Take out by name `{ name, amount? }` (default 1), from the oldest items first |
 | `DELETE /api/v1/items/:id` | write | Delete an item |
@@ -444,7 +453,7 @@ rest_command:
 
 The sensor's state is the number of items to eat soon; the attribute `nextExpiring` lists them with `name`, `daysLeft` and `drawer`, e.g. for a dashboard card or an automation.
 
-**Voice:** with an [Assist custom sentence](https://www.home-assistant.io/voice_control/custom_sentences/), "I froze 2 Bolognese in drawer 3" works with any Assist device, and through Home Assistant's Alexa or Google integration too. `config/custom_sentences/en/freezer.yaml`:
+**Voice:** with an [Assist custom sentence](https://www.home-assistant.io/voice_control/custom_sentences/), "I froze 2 Bolognese in drawer 3" works with Assist: Home Assistant's voice assistants, the Assist dialog in the app, and Assist devices. Amazon Alexa and Google Assistant don't pass such free-form sentences on to Home Assistant through its built-in integrations; that needs a custom Alexa skill or similar. `config/custom_sentences/en/freezer.yaml`:
 
 ```yaml
 language: "en"
@@ -463,8 +472,10 @@ lists:
     range: { from: 1, to: 20 }
   food:
     wildcard: true
+  # A number, not a wildcard: wildcards match greedily, and with two of them "Lasagne in drawer 3"
+  # ends up as the food's name.
   drawer:
-    wildcard: true
+    range: { from: 1, to: 20 }
 ```
 
 and in `configuration.yaml`:
@@ -477,21 +488,34 @@ intent_script:
         data:
           food: "{{ food }}"
           quantity: "{{ quantity }}"
-          # Drawers are matched by name; adjust this to your drawer names.
-          drawer: "{{ 'Drawer ' ~ drawer if drawer is defined else '' }}"
+          # The drawer's position in the app (1 = top), whatever the drawers are called.
+          drawer: "{{ drawer if drawer is defined else '' }}"
+        response_variable: result
+      - stop: ""
+        response_variable: result
+    # Answer with what the API actually did, so a typo or unknown drawer isn't reported as done.
     speech:
-      text: "Froze {{ quantity }} {{ food }}."
+      text: >-
+        {% if action_response.status == 201 %}Froze {{ quantity | int }} {{ food }}.
+        {%- else %}That didn't work: {{ action_response.content.message | default('error ' ~ action_response.status) }}{% endif %}
   FreezerTake:
     action:
       - action: rest_command.freezer_take
         data:
           food: "{{ food }}"
           quantity: "{{ quantity }}"
+        response_variable: result
+      - stop: ""
+        response_variable: result
     speech:
-      text: "Took {{ quantity }} {{ food }} out."
+      text: >-
+        {% if action_response.status == 200 %}Took {{ action_response.content.taken | int }} {{ food }} out, {{ action_response.content.remaining | int }} left.
+        {%- else %}That didn't work: {{ action_response.content.message | default('error ' ~ action_response.status) }}{% endif %}
 ```
 
-For German, put the same file under `custom_sentences/de/` with `language: "de"` and sentences like `"ich habe {quantity} {food} in Schublade {drawer} eingefroren"`.
+For German, put the same file under `custom_sentences/de/` with `language: "de"` and sentences like `"ich habe {quantity} {food} in Schublade {drawer} eingefroren"` and `"ich habe {quantity} {food} [aus dem Gefrierschrank] genommen"`. The replies come from `intent_script`, so translate those texts too if you want German answers.
+
+To try all of this against the dev stack, see [Trying the API with Home Assistant](#trying-the-api-with-home-assistant).
 
 ## QR stickers and scanning
 

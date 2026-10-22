@@ -100,14 +100,25 @@ const newItemBody = z.object({
   quantity: field.quantity.default(1),
   unit: field.unit.optional(),
   category: field.category.optional(),
-  /** Drawer id or name (case-insensitive); default: the first drawer. */
-  drawer: z.string().trim().max(100).optional(),
+  /** Drawer id, name (case-insensitive) or position (1 = first); default: the first drawer. */
+  drawer: z.union([z.string().trim().max(100), z.number().int().positive().max(1000)]).optional(),
   containerNumber: field.containerNumber.optional(),
   frozenAt: dateString.optional(),
   bestBefore: dateString.nullable().optional(),
   notes: field.notes.optional(),
   barcode: field.barcode.optional(),
 });
+
+/** By id or name (ignoring case), else by position: 3 or "3" is the third drawer, as in "drawer 3". */
+function findDrawer(drawers: Detail["drawers"], wanted: string | number | undefined) {
+  if (wanted === undefined || wanted === "") return drawers[0];
+  if (typeof wanted === "string") {
+    const key = wanted.toLocaleLowerCase("de");
+    const named = drawers.find((d) => d.id === wanted || d.name.trim().toLocaleLowerCase("de") === key);
+    if (named || !/^\d+$/.test(wanted)) return named;
+  }
+  return drawers[Number(wanted) - 1]; // drawers come sorted by sortOrder
+}
 
 const takeBody = z.object({ amount: field.quantity.optional() });
 const takeByNameBody = z.object({ name: field.name, amount: field.quantity.default(1) });
@@ -202,10 +213,7 @@ export function publicApi() {
     const freezer = await detail(c, c.req.param("id"));
     if (!freezer) return c.json({ error: "not_found" }, 404);
     const body = newItemBody.parse(await c.req.json().catch(() => ({})));
-    const wanted = body.drawer?.toLocaleLowerCase("de");
-    const drawer = wanted
-      ? freezer.drawers.find((d) => d.id === body.drawer || d.name.trim().toLocaleLowerCase("de") === wanted)
-      : freezer.drawers[0];
+    const drawer = findDrawer(freezer.drawers, body.drawer);
     if (!drawer) return c.json({ error: "unknown_drawer", message: `No drawer "${body.drawer}".`, drawers: freezer.drawers.map((d) => d.name) }, 400);
     // Like picking a remembered food in the app: its last unit and category are the defaults.
     const known = freezer.suggestions.find((s) => s.id === suggestionId(freezer.id, body.name));

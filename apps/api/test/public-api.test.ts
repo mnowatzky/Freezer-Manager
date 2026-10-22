@@ -228,6 +228,18 @@ describe("write", () => {
     expect(again).toMatchObject({ unit: "portion", category: "meals", quantity: 1, drawer: { name: "Schublade 1" } });
   });
 
+  it("finds the drawer by name, id or position", async () => {
+    const tok = await token("bob");
+    const drawerOf = async (drawer: unknown) =>
+      ((await (await v1("/freezers/f1/items", tok, { method: "POST", body: { name: "Eis", drawer } })).json()) as { drawer?: { id: string } }).drawer?.id;
+    expect(await drawerOf("SCHUBLADE 2")).toBe("d2");
+    expect(await drawerOf("d2")).toBe("d2");
+    expect(await drawerOf(2)).toBe("d2");
+    expect(await drawerOf("2")).toBe("d2");
+    expect(await drawerOf("")).toBe("d1");
+    expect((await v1("/freezers/f1/items", tok, { method: "POST", body: { name: "Eis", drawer: 3 } })).status).toBe(400);
+  });
+
   it("answers errors with a status and a message", async () => {
     const tok = await token("bob");
     await v1("/freezers/f1/items", tok, { method: "POST", body: { name: "A", containerNumber: 7 } });
