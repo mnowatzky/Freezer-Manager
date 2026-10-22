@@ -2,7 +2,7 @@ import { defineMutator, defineMutators, type Transaction } from "@rocicorp/zero"
 import { z } from "zod";
 import "./context";
 import type { ZeroContext } from "./context";
-import { CATEGORY_IDS, MAX_DRAWERS, suggestionId, UNITS } from "./domain";
+import { CATEGORY_IDS, defaultBestBefore, MAX_DRAWERS, monthsBetween, shelfLifeMonths, suggestionId, UNITS } from "./domain";
 import { appError, LOCALES, messages } from "./i18n";
 import { zql } from "./zero-schema.gen";
 
@@ -46,7 +46,27 @@ const unit = z.enum(UNITS);
 const quantity = z.number().positive().max(100_000);
 const containerNumber = z.number().int().positive().max(1_000_000).nullable();
 // Optional so that app versions from before categories existed keep working; undefined = unchanged.
-const category = z.enum(CATEGORY_IDS).nullable().optional();
+const categoryArg = z.enum(CATEGORY_IDS).nullable().optional();
+// Same for best-before dates; on add, undefined = the food's default.
+const bestBeforeArg = z.number().int().nullable().optional();
+
+type Suggestion = { shelfLifeMonths: number | null; lastCategory: string | null } | undefined;
+
+/**
+ * A best-before date that differs from the food's default was picked by hand: remember the storage
+ * time it implies, so the next item of that food gets the same. Returns the months to store.
+ */
+function chosenShelfLife(
+  suggestion: Suggestion,
+  category: string | null | undefined,
+  frozenAt: number,
+  bestBefore: number | null,
+): number | null {
+  const remembered = suggestion?.shelfLifeMonths ?? null;
+  if (bestBefore === null || bestBefore <= frozenAt) return remembered;
+  const fallback = defaultBestBefore(frozenAt, shelfLifeMonths(remembered, category));
+  return bestBefore === fallback ? remembered : monthsBetween(frozenAt, bestBefore);
+}
 
 export const mutators = defineMutators({
   freezer: {
@@ -119,29 +139,38 @@ export const mutators = defineMutators({
         unit,
         frozenAt: z.number().int(),
         notes: z.string().trim().max(500).nullable(),
-        category,
+        category: categoryArg,
+        bestBefore: bestBeforeArg,
       }),
       async ({ tx, ctx, args }) => {
         await requireRole(tx, ctx, args.freezerId);
         await requireDrawerInFreezer(tx, args.drawerId, args.freezerId);
         if (args.containerNumber !== null) await requireContainerFree(tx, args.freezerId, args.containerNumber);
 
+        const sid = suggestionId(args.freezerId, args.name);
+        const existing = await tx.run(zql.foodSuggestion.where("id", sid).one());
+        const category = args.category ?? null;
+        const best =
+          args.bestBefore !== undefined
+            ? args.bestBefore
+            : defaultBestBefore(args.frozenAt, shelfLifeMonths(existing?.shelfLifeMonths, category));
+
         await tx.mutate.item.insert({
           ...args,
           notes: args.notes || null,
-          category: args.category ?? null,
+          category,
+          bestBefore: best,
           createdBy: ctx.userID,
           createdAt: Date.now(),
         });
 
-        const sid = suggestionId(args.freezerId, args.name);
-        const existing = await tx.run(zql.foodSuggestion.where("id", sid).one());
         await tx.mutate.foodSuggestion.upsert({
           id: sid,
           freezerId: args.freezerId,
           name: args.name,
           lastUnit: args.unit,
           lastCategory: args.category === undefined ? (existing?.lastCategory ?? null) : args.category,
+          shelfLifeMonths: chosenShelfLife(existing, category, args.frozenAt, best),
           useCount: (existing?.useCount ?? 0) + 1,
         });
       },
@@ -157,7 +186,8 @@ export const mutators = defineMutators({
         unit,
         frozenAt: z.number().int(),
         notes: z.string().trim().max(500).nullable(),
-        category,
+        category: categoryArg,
+        bestBefore: bestBeforeArg,
       }),
       async ({ tx, ctx, args }) => {
         const item = await requireItem(tx, ctx, args.id);
@@ -165,6 +195,12 @@ export const mutators = defineMutators({
         if (args.containerNumber !== null)
           await requireContainerFree(tx, item.freezerId, args.containerNumber, item.id);
         await tx.mutate.item.update({ ...args, notes: args.notes || null });
+
+        if (args.bestBefore !== undefined) {
+          const s = await tx.run(zql.foodSuggestion.where("id", suggestionId(item.freezerId, args.name)).one());
+          const months = chosenShelfLife(s, args.category === undefined ? item.category : args.category, args.frozenAt, args.bestBefore);
+          if (s && months !== s.shelfLifeMonths) await tx.mutate.foodSuggestion.update({ id: s.id, shelfLifeMonths: months });
+        }
       },
     ),
 
@@ -197,7 +233,8 @@ export const mutators = defineMutators({
           unit,
           frozenAt: z.number().int(),
           notes: z.string().trim().max(500).nullable(),
-          category,
+          category: categoryArg,
+          bestBefore: bestBeforeArg,
           createdAt: z.number().int(),
         }),
         amount: quantity,
@@ -229,6 +266,7 @@ export const mutators = defineMutators({
           quantity: amount,
           notes: snapshot.notes || null,
           category: snapshot.category ?? null,
+          bestBefore: snapshot.bestBefore ?? null,
           createdBy: ctx.userID,
         });
       },

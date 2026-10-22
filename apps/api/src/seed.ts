@@ -1,6 +1,6 @@
 // Dev seed: `pnpm db:seed --email you@example.com` (run after your first login).
 // Creates a demo freezer "Keller" owned by that user.
-import { suggestionId, type Category } from "@freezer/shared/domain";
+import { CATEGORIES, defaultBestBefore, suggestionId, type Category } from "@freezer/shared/domain";
 import { de } from "@freezer/shared/i18n";
 import { eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
@@ -16,6 +16,10 @@ if (!owner) throw new Error(`No user with email ${values.email}. Log in once via
 const freezerId = randomUUID();
 const now = new Date();
 const daysAgo = (d: number) => new Date(Date.now() - d * 86_400_000).toISOString().slice(0, 10);
+const bestBefore = (frozenAt: string, months: number | null) => {
+  const date = defaultBestBefore(Date.parse(`${frozenAt}T00:00:00Z`), months);
+  return date === null ? null : new Date(date).toISOString().slice(0, 10);
+};
 
 await db.transaction(async (tx) => {
   await tx.insert(schema.freezer).values({ id: freezerId, name: "Keller", ownerId: owner.id, createdAt: now });
@@ -51,6 +55,7 @@ await db.transaction(async (tx) => {
       quantity,
       unit,
       frozenAt: daysAgo(age),
+      bestBefore: bestBefore(daysAgo(age), CATEGORIES[category].months),
       category,
       createdBy: owner.id,
       createdAt: now,

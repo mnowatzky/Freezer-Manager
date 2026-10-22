@@ -140,6 +140,8 @@ export const item = pgTable(
     notes: text("notes"),
     // One of CATEGORIES (domain.ts); null = uncategorized.
     category: text("category"),
+    // Eat by this date. Filled in from the food's storage time when freezing; null = no warning.
+    bestBefore: date("best_before", { mode: "string" }),
     createdBy: text("created_by")
       .notNull()
       .references(() => user.id),
@@ -148,6 +150,7 @@ export const item = pgTable(
   (t) => [
     unique("item_freezer_container_uq").on(t.freezerId, t.containerNumber),
     index("item_freezer_idx").on(t.freezerId),
+    index("item_best_before_idx").on(t.bestBefore),
   ],
 );
 
@@ -162,6 +165,8 @@ export const foodSuggestion = pgTable(
     name: text("name").notNull(),
     lastUnit: text("last_unit").notNull(),
     lastCategory: text("last_category"),
+    // Storage time someone chose by hand for this food; overrides the category's default.
+    shelfLifeMonths: integer("shelf_life_months"),
     useCount: integer("use_count").notNull(),
   },
   (t) => [index("food_suggestion_freezer_idx").on(t.freezerId)],

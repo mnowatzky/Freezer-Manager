@@ -59,6 +59,8 @@ export const de = {
     viewDrawer: "Schublade",
     viewDate: "Datum",
     viewName: "Name",
+    viewBestBefore: "Haltbar",
+    eatSoon: "Bald essen",
     freeze: "Einfrieren",
     scan: "Scannen",
     settings: "Einstellungen",
@@ -85,6 +87,19 @@ export const de = {
     edit: "Bearbeiten",
     removeSuggestion: "Vorschlag entfernen",
     category: "Kategorie",
+    bestBefore: "Haltbar bis",
+    bestBeforeDefault: (months: number) => `${months} ${months === 1 ? "Monat" : "Monate"} ab Einfrieren`,
+    // Days until the best-before date (negative: past it).
+    bestBeforeRelative: (days: number) => {
+      if (days === 0) return "heute";
+      if (days === 1) return "morgen";
+      if (days > 1) return days < 14 ? `in ${days} Tagen` : days < 60 ? `in ${Math.round(days / 7)} Wochen` : `in ${Math.round(days / 30)} Monaten`;
+      const over = -days;
+      if (over < 14) return over === 1 ? "1 Tag drüber" : `${over} Tage drüber`;
+      if (over < 60) return `${Math.round(over / 7)} Wochen drüber`;
+      const m = Math.round(over / 30);
+      return m === 1 ? "1 Monat drüber" : `${m} Monate drüber`;
+    },
     took: (name: string, qty: string) => `${qty} ${name} entnommen`,
     deleted: (name: string) => `„${name}“ gelöscht`,
     restoredWithoutContainer: (n: number) => `Zurückgelegt, aber ohne Behälter ${n}: Der ist inzwischen belegt.`,
