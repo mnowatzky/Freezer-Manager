@@ -549,10 +549,11 @@ The UI follows [Material 3 Expressive](https://m3.material.io/). Material Web (`
 - **Icons:**
   - The icons come from Material Symbols Rounded, as a self-hosted subset of the variable font (`src/theme/fonts/`, served under a content-hashed URL). The subset works offline and animates the fill on selection.
   - To add an icon, put its name into `src/theme/icon-names.txt` and run `pnpm --filter @freezer/web fetch-icons`.
-- **App icons:** `pnpm --filter @freezer/web generate-icons` renders `apps/web/assets/icon*.svg` (the 108-unit adaptive-icon artwork) into four kinds of icon:
+- **App icons:** `pnpm --filter @freezer/web generate-icons` renders `apps/web/assets/icon*.svg` (the 108-unit adaptive-icon artwork) into five kinds of icon:
   - a round `any` icon, for browsers that create plain shortcuts (e.g. Brave)
   - a padded `maskable` icon, for Android launcher shapes
   - a `monochrome` icon, for Android themed icons
+  - a notification badge, for the Android status bar
   - the Apple touch icon and the favicon
 
   When you install the app from Chrome on Android, Chrome creates a real WebAPK, which uses the maskable and monochrome icons.
