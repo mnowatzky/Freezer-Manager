@@ -33,7 +33,7 @@ self.addEventListener("push", (event) => {
       body: data.body,
       tag: data.tag ?? "eat-soon",
       icon: "/pwa-192x192.png",
-      badge: "/monochrome-icon-512x512.png",
+      badge: "/badge-96x96.png",
       data: { url: data.url ?? "/" },
     }),
   );

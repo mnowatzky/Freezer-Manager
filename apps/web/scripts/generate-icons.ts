@@ -4,6 +4,7 @@
 // - pwa-*.png            purpose "any": round icon (for shortcuts/desktop, where nothing masks it)
 // - maskable-*.png       purpose "maskable": full-bleed, Android applies the launcher shape
 // - monochrome-*.png     purpose "monochrome": silhouette for Android themed icons
+// - badge-*.png          notification badge: silhouette for the Android status bar
 // - apple-touch-icon.png iOS (rounds the corners itself)
 // - favicon-*.png
 import sharp from "sharp";
@@ -38,12 +39,16 @@ async function round(size: number, file: string) {
   await sharp(img).composite([{ input: circle(size), blend: "dest-in" }]).png().toFile(out(file));
 }
 
-// Maskable/monochrome: shrink so the box fits Android's visible circle (radius 36 of 108).
-const SAFE = 0.74;
+// Maskable/monochrome: shrink so the box corners stay inside the maskable safe zone (a circle
+// with 40% of the width as radius). The WebAPK launcher circle shows ~87% of the image.
+const SAFE = 0.92;
 
 for (const size of [64, 192, 512]) await round(size, `pwa-${size}x${size}.png`);
 await round(48, "favicon-48x48.png");
 await sharp(await render("icon.svg", 512, SAFE, BRAND)).toFile(out("maskable-icon-512x512.png"));
 await sharp(await render("icon-monochrome.svg", 512, SAFE)).toFile(out("monochrome-icon-512x512.png"));
+// Badge: Android draws it at 24dp, with the glyph filling the 22dp live area, so zoom the
+// silhouette (≈72 units wide) until it reaches ~92% of the canvas. 96px = 24dp at xxxhdpi.
+await sharp(await render("icon-monochrome.svg", 96, 1.38)).toFile(out("badge-96x96.png"));
 await sharp(await render("icon.svg", 180, 1.2)).toFile(out("apple-touch-icon-180x180.png"));
 console.log("Icons written to public/");
