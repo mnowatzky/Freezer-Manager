@@ -39,8 +39,9 @@ async function round(size: number, file: string) {
   await sharp(img).composite([{ input: circle(size), blend: "dest-in" }]).png().toFile(out(file));
 }
 
-// Maskable/monochrome: shrink so the box fits Android's visible circle (radius 36 of 108).
-const SAFE = 0.74;
+// Maskable/monochrome: shrink so the box corners stay inside the maskable safe zone (a circle
+// with 40% of the width as radius). The WebAPK launcher circle shows ~87% of the image.
+const SAFE = 0.92;
 
 for (const size of [64, 192, 512]) await round(size, `pwa-${size}x${size}.png`);
 await round(48, "favicon-48x48.png");
