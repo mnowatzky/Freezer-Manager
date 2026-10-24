@@ -43,7 +43,7 @@ server {
   }
 
   # Must revalidate so new deploys are picked up by the service worker.
-  location ~* ^/(index\.html|sw\.js|registerSW\.js|manifest\.webmanifest)$ {
+  location ~* ^/(index\.html|sw\.js|manifest\.webmanifest)$ {
     include /etc/nginx/snippets/security-headers.conf;
     add_header Cache-Control "no-cache";
   }

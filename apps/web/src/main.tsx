@@ -2,6 +2,7 @@ import { MotionConfig } from "motion/react";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { createBrowserRouter, RouterProvider } from "react-router";
+import { registerSW } from "virtual:pwa-register";
 import { AuthedLayout } from "./components/AuthedLayout";
 import { ToastProvider } from "./lib/toast";
 import { installGlobalErrorReporting } from "./lib/report-error";
@@ -16,6 +17,20 @@ import { SetupPage } from "./routes/SetupPage";
 import "./styles.css";
 
 installGlobalErrorReporting();
+
+// A new deploy's service worker takes over right away (skipWaiting in sw.ts); registerSW then
+// reloads the page onto the new bundle. Browsers only look for a new worker on navigations, but the
+// installed app is mostly resumed or focused (launch_handler "focus-existing") instead of reloaded,
+// so also check whenever it comes back to the foreground.
+registerSW({
+  immediate: true,
+  onRegisteredSW(_url, registration) {
+    if (!registration) return;
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") registration.update().catch(() => {}); // e.g. offline
+    });
+  },
+});
 
 // Every route renders ErrorPage when it throws (and for unknown URLs).
 const router = createBrowserRouter([
