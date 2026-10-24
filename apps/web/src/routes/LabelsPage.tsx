@@ -1,7 +1,7 @@
 import { containerUrl } from "@freezer/shared/domain";
 import { t } from "../lib/i18n";
 import QRCode from "qrcode";
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useState, type ComponentProps, type CSSProperties } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { Button, IconButton, TextField } from "../components/m3";
 
@@ -29,21 +29,21 @@ export function LabelsPage() {
         </Button>
       </div>
       <div className="no-print mx-auto mb-6 grid max-w-xl grid-cols-3 gap-3">
-        <TextField
+        <NumberField
           label={t.labels.from}
           type="number"
           min={1}
           value={from}
           onChange={(e) => update({ from: e.target.value })}
         />
-        <TextField
+        <NumberField
           label={t.labels.to}
           type="number"
           min={from}
           value={to}
           onChange={(e) => update({ to: e.target.value })}
         />
-        <TextField
+        <NumberField
           label={t.labels.size}
           type="number"
           min={2}
@@ -63,6 +63,25 @@ export function LabelsPage() {
         ))}
       </div>
     </div>
+  );
+}
+
+/** Keeps the typed text while focused, so clearing it doesn't snap back to the clamped value. */
+function NumberField({ value, onChange, onBlur, ...props }: ComponentProps<typeof TextField>) {
+  const [draft, setDraft] = useState<string>();
+  return (
+    <TextField
+      {...props}
+      value={draft ?? value}
+      onChange={(e) => {
+        setDraft(e.target.value);
+        onChange?.(e);
+      }}
+      onBlur={(e) => {
+        setDraft(undefined);
+        onBlur?.(e);
+      }}
+    />
   );
 }
 
