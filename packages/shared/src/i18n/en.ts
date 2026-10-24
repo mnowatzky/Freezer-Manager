@@ -130,6 +130,7 @@ export const en: Messages = {
   },
   scanner: {
     title: "Scan QR code",
+    titleAny: "Scan QR code or barcode",
     manual: "Or enter a number",
     open: "Open",
     noCamera: "Camera not available.",

@@ -36,6 +36,7 @@ function FreezerView({ data, freezer }: { data: ReturnType<typeof useFreezerData
   const [categoryFilter, setCategoryFilter] = useState<Category | null>(null);
   const [dialog, setDialog] = useState<"freeze" | "scan" | "switch" | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [scannedBarcode, setScannedBarcode] = useState<string | null>(null);
   const selected = freezer.items.find((i) => i.id === selectedId);
 
   // Extended FAB collapses while scrolling down, expands when scrolling up (M3 behavior).
@@ -206,8 +207,30 @@ function FreezerView({ data, freezer }: { data: ReturnType<typeof useFreezerData
         <Fab icon="ac_unit" label={t.freezer.freeze} extended={fabExtended} disabled={!canWrite} onClick={() => setDialog("freeze")} />
       </div>
 
-      <ItemDialog open={dialog === "freeze"} freezer={freezer} onClose={() => setDialog(null)} />
-      <Scanner open={dialog === "scan"} onResult={(n) => void navigate(`/c/${n}`)} onClose={() => setDialog(null)} />
+      <ItemDialog
+        open={dialog === "freeze"}
+        freezer={freezer}
+        barcode={scannedBarcode}
+        onClose={() => {
+          setDialog(null);
+          setScannedBarcode(null);
+        }}
+      />
+      {/* Product barcodes start freezing, so only people who can write get them in the scanner. */}
+      {canWrite ? (
+        <Scanner
+          open={dialog === "scan"}
+          mode="any"
+          onResult={(result) => {
+            if ("container" in result) return void navigate(`/c/${result.container}`);
+            setScannedBarcode(result.barcode);
+            setDialog("freeze");
+          }}
+          onClose={() => setDialog(null)}
+        />
+      ) : (
+        <Scanner open={dialog === "scan"} onResult={(n) => void navigate(`/c/${n}`)} onClose={() => setDialog(null)} />
+      )}
       <ItemSheet freezer={freezer} item={selected} onClose={() => setSelectedId(null)} />
       <Sheet open={dialog === "switch"} title={t.freezer.switchFreezer} onClose={() => setDialog(null)}>
         <ListGroup>

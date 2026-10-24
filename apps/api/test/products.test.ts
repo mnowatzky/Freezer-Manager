@@ -131,6 +131,10 @@ describe("categoryFromTags", () => {
     expect(categoryFromTags(["en:desserts", "en:frozen-desserts", "en:ice-creams"])).toBe("desserts");
     expect(categoryFromTags(["en:plant-based-foods", "en:breads"])).toBe("baked");
     expect(categoryFromTags(["en:meats", "en:poultries", "en:chickens"])).toBe("poultry");
+    // Oat drink (4311501695135): plant-based milk counts as dairy.
+    expect(
+      categoryFromTags(["en:beverages", "en:plant-based-foods", "en:dairy-substitutes", "en:milk-substitutes", "en:plant-based-beverages", "en:plant-based-milk-alternatives", "en:cereal-based-drinks", "en:oat-based-drinks", "en:Hafermilch"]),
+    ).toBe("dairy");
     expect(categoryFromTags(["en:snacks"])).toBeNull();
     expect(categoryFromTags(undefined)).toBeNull();
   });
