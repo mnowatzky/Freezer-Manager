@@ -32,7 +32,7 @@ tag("herbs", "herbs", "frozen-herbs", "aromatic-plants");
 tag("baked", "breads", "bread-rolls", "baguettes", "pastries", "viennoiseries", "doughs", "pizza-doughs", "bakery-products");
 tag("meals", "meals", "ready-meals", "frozen-ready-meals", "prepared-meals", "pizzas", "frozen-pizzas", "pasta-dishes", "lasagnas");
 tag("soups", "soups", "broths", "stocks");
-tag("dairy", "dairies", "cheeses", "butters", "milks", "creams");
+tag("dairy", "dairies", "cheeses", "butters", "milks", "creams", "dairy-substitutes", "milk-substitutes", "plant-based-milk-alternatives");
 tag("desserts", "desserts", "frozen-desserts", "ice-creams", "ice-creams-and-sorbets", "sorbets", "cakes");
 
 export function categoryFromTags(tags: readonly string[] | undefined): Category | null {

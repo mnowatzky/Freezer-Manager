@@ -12,31 +12,58 @@ prepareZXingModule({
   overrides: { locateFile: (path: string, prefix: string) => (path.endsWith(".wasm") ? wasmUrl : prefix + path) },
 });
 
-// What a scanner looks for: container QR codes (→ number) or product barcodes (→ digits).
+// Product barcode formats supported by the bundled ZXing WASM.
+const BARCODE_FORMATS = ["ean_13", "ean_8", "upc_a", "upc_e"] as const;
+type Format = "qr_code" | (typeof BARCODE_FORMATS)[number];
+
+const parseBarcode = (text: string) => (BARCODE_PATTERN.test(text.trim()) ? text.trim() : null);
+
+export type ScanResult = { container: number } | { barcode: string };
+
+// What a scanner looks for: container QR codes (→ number), product barcodes (→ digits), or both.
+// `format` is the detected symbology; manual entry has none.
 const modes = {
   container: {
     formats: ["qr_code"],
     parse: (text: string) => parseContainerCode(text),
+    title: () => t.scanner.title,
     manual: () => t.scanner.manual,
     invalid: () => t.scanner.invalid,
   },
   barcode: {
-    // Supported by the bundled ZXing WASM.
-    formats: ["ean_13", "ean_8", "upc_a", "upc_e"],
-    parse: (text: string) => (BARCODE_PATTERN.test(text.trim()) ? text.trim() : null),
+    formats: BARCODE_FORMATS,
+    parse: parseBarcode,
+    title: () => t.scanner.title,
     manual: () => t.scanner.barcodeManual,
     invalid: () => t.scanner.invalidBarcode,
+  },
+  // Home screen: a sticker opens its container, a product barcode starts freezing it. Typed-in
+  // numbers are container numbers.
+  any: {
+    formats: ["qr_code", ...BARCODE_FORMATS],
+    parse: (text: string, format?: Format): ScanResult | null => {
+      if (format && format !== "qr_code") {
+        const code = parseBarcode(text);
+        return code === null ? null : { barcode: code };
+      }
+      const n = parseContainerCode(text);
+      return n === null ? null : { container: n };
+    },
+    title: () => t.scanner.titleAny,
+    manual: () => t.scanner.manual,
+    invalid: () => t.scanner.invalid,
   },
 } as const;
 
 export type ScannerMode =
   | { mode?: "container"; onResult: (n: number) => void }
-  | { mode: "barcode"; onResult: (code: string) => void };
+  | { mode: "barcode"; onResult: (code: string) => void }
+  | { mode: "any"; onResult: (result: ScanResult) => void };
 
 /** Camera scanner sheet (container QR codes by default) with manual entry as an equal alternative. */
 export function Scanner({ open, onClose, ...props }: ScannerMode & { open: boolean; onClose: () => void }) {
   return (
-    <Sheet open={open} title={t.scanner.title} onClose={onClose}>
+    <Sheet open={open} title={modes[props.mode ?? "container"].title()} onClose={onClose}>
       <ScannerView {...props} />
     </Sheet>
   );
@@ -46,9 +73,11 @@ export function Scanner({ open, onClose, ...props }: ScannerMode & { open: boole
 export function ScannerView(props: ScannerMode) {
   const mode = modes[props.mode ?? "container"];
   // Each mode's parser matches its callback's argument type.
-  const onResult = props.onResult as (value: string | number) => void;
+  const onResult = props.onResult as (value: Parsed) => void;
   return <ScannerBody formats={mode.formats} parse={mode.parse} manualLabel={mode.manual()} invalidText={mode.invalid()} onResult={onResult} />;
 }
+
+type Parsed = string | number | ScanResult;
 
 function ScannerBody({
   formats,
@@ -57,11 +86,11 @@ function ScannerBody({
   invalidText,
   onResult,
 }: {
-  formats: readonly ("qr_code" | "ean_13" | "ean_8" | "upc_a" | "upc_e")[];
-  parse: (text: string) => string | number | null;
+  formats: readonly Format[];
+  parse: (text: string, format?: Format) => Parsed | null;
   manualLabel: string;
   invalidText: string;
-  onResult: (value: string | number) => void;
+  onResult: (value: Parsed) => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [cameraError, setCameraError] = useState(false);
@@ -89,7 +118,7 @@ function ScannerBody({
           try {
             const codes = await detector.detect(videoRef.current);
             for (const code of codes) {
-              const value = parse(code.rawValue);
+              const value = parse(code.rawValue, code.format as Format);
               if (value !== null) return emit(value);
               setInvalid(true);
             }

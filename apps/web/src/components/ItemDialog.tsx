@@ -12,9 +12,9 @@ import {
 } from "@freezer/shared/domain";
 import { t } from "../lib/i18n";
 import { AnimatePresence, motion, useIsPresent } from "motion/react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { recentDrawer, rememberDrawer } from "../lib/active-freezer";
-import { lookupBarcode } from "../lib/barcode-lookup";
+import { lookupBarcode, type BarcodeLookup } from "../lib/barcode-lookup";
 import { dateToInput, inputToDate, quantityLabel } from "../lib/format";
 import type { FreezerDetail, ItemRow } from "../lib/freezer-data";
 import { useToast } from "../lib/toast";
@@ -30,6 +30,8 @@ type FormProps = {
   /** Edit an existing item; otherwise "Einfrieren" (add). */
   item?: ItemRow;
   containerNumber?: number | null;
+  /** A product barcode scanned elsewhere (home screen scanner), looked up right away. */
+  barcode?: string | null;
   onDone: () => void;
 };
 
@@ -52,7 +54,7 @@ function SuggestionChip({ children, ...props }: React.ComponentProps<typeof moti
   );
 }
 
-export function ItemForm({ freezer, item, containerNumber = null, onDone }: FormProps) {
+export function ItemForm({ freezer, item, containerNumber = null, barcode: scannedBarcode = null, onDone }: FormProps) {
   const mutate = useMutate();
   const { remove } = useRemoveWithUndo();
   const canWrite = useCanWrite();
@@ -77,7 +79,9 @@ export function ItemForm({ freezer, item, containerNumber = null, onDone }: Form
   const toast = useToast();
   // Barcode scanning (only when freezing something new): the scanner replaces the form meanwhile.
   const [scanning, setScanning] = useState(false);
-  const [barcode, setBarcode] = useState<string | null>(null);
+  // A barcode from the home screen scanner is this form's first scan.
+  const initialBarcode = item ? null : scannedBarcode;
+  const [barcode, setBarcode] = useState<string | null>(initialBarcode);
   const [fromOpenFoodFacts, setFromOpenFoodFacts] = useState(false);
   const [packageSize, setPackageSize] = useState<ReturnType<typeof parsePackageSize>>(null);
 
@@ -105,7 +109,10 @@ export function ItemForm({ freezer, item, containerNumber = null, onDone }: Form
     setBarcode(code);
     setFromOpenFoodFacts(false);
     setPackageSize(null);
-    const found = await lookupBarcode(code, freezer);
+    applyLookup(await lookupBarcode(code, freezer), nameFromEarlierScan);
+  };
+
+  const applyLookup = (found: BarcodeLookup, nameFromEarlierScan: boolean) => {
     if (found.source === "freezer") {
       setName(found.name);
       if (found.unit) {
@@ -116,10 +123,11 @@ export function ItemForm({ freezer, item, containerNumber = null, onDone }: Form
     } else if (found.source === "off") {
       setName(found.name);
       if (found.category) chooseCategory(found.category);
-      // One bag or piece by default; the package size (e.g. 750 g) is a one-tap alternative.
-      setQuantity("1");
-      setUnit(found.category === "vegetables" || found.category === "fruit" || found.category === "herbs" ? "bag" : "piece");
-      setPackageSize(parsePackageSize(found.packageSize));
+      // The package size (e.g. 1 l, 750 g) by default; one piece if OFF has none in a unit we know.
+      const size = parsePackageSize(found.packageSize);
+      setQuantity(String(size?.quantity ?? 1));
+      setUnit(size?.unit ?? "piece");
+      setPackageSize(size);
       setFromOpenFoodFacts(true);
     } else {
       // The name field gets focus when the form comes back; don't leave the previous product's name in it.
@@ -127,6 +135,10 @@ export function ItemForm({ freezer, item, containerNumber = null, onDone }: Form
       toast(found.reason === "limited" ? t.item.lookupLimited : found.reason === "failed" ? t.item.lookupFailed : t.item.productNotFound);
     }
   };
+  const lookUpInitial = useEffectEvent(async (code: string) => applyLookup(await lookupBarcode(code, freezer), false));
+  useEffect(() => {
+    if (initialBarcode) void lookUpInitial(initialBarcode);
+  }, [initialBarcode]);
 
   const qty = Number(quantity.replace(",", "."));
   const valid = Boolean(name.trim() && qty > 0 && drawerId && frozenAt);

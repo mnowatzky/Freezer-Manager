@@ -238,7 +238,7 @@ If you lose `POCKET_ID_ENCRYPTION_KEY`, the instance becomes unusable.
 
 ### Barcodes
 
-- **Lookup order:** the freezer's own `barcode` table (synced, so no network round trip), then `GET /api/products/:code`, otherwise the user types the name. Saving an item with a scanned code stores the name, unit and category it was actually saved with, so corrections stick for the whole household.
+- **Lookup order:** the freezer's own `barcode` table (synced, so no network round trip), then `GET /api/products/:code`, otherwise the user types the name. A product from Open Food Facts starts with its package size as the amount (e.g. 1 l, 750 g), or 1 piece when OFF gives none in a unit the app knows. Saving an item with a scanned code stores the name, unit and category it was actually saved with, so corrections stick for the whole household.
 - **`/api/products/:code`** (`apps/api/src/products.ts`) asks Open Food Facts with a custom User-Agent and a 5-second timeout, maps the product to name, brand, package size and category (from `categories_tags`), and caches answers, including "not found", for 24 hours in memory. Product data from Open Food Facts is licensed under the [ODbL](https://opendatacommons.org/licenses/odbl/1-0/); the form says so when it used it.
 
 ### Push notifications
@@ -524,7 +524,7 @@ To try all of this against the dev stack, see [Trying the API with Home Assistan
   - If it holds something, you see the item with **Take out…**.
 - **Numbering:** numbers are unique per freezer, and containers don't need to be registered first.
 - **Printing:** **Settings → Print QR labels** (`/labels?from=1&to=40`) prints a sheet of stickers for the current origin. In dev, `VITE_PUBLIC_URL` can override that origin.
-- **Scanning in the app:** the **Scan** button uses the camera through a bundled ZXing WASM build, which also works on iOS. You can also type the number instead.
+- **Scanning in the app:** the **Scan** button uses the camera through a bundled ZXing WASM build, which also works on iOS. You can also type the number instead. It reads product barcodes too: scanning one opens **Freeze** and looks the product up (see [Barcodes](#barcodes)). Members who can only read the freezer get a scanner for QR codes only.
 
 ## Translations
 

@@ -135,6 +135,7 @@ export const de = {
   },
   scanner: {
     title: "QR-Code scannen",
+    titleAny: "QR-Code oder Barcode scannen",
     manual: "Oder Nummer eingeben",
     open: "Öffnen",
     noCamera: "Kamera nicht verfügbar.",
