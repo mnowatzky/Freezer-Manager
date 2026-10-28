@@ -89,6 +89,13 @@ describe("permissions", () => {
     await expect(as("bob", (m) => call(m.freezer.delete({ freezerId: "f1" })))).rejects.toThrow(/owner/);
   });
 
+  it("freezer.rename: owner only", async () => {
+    await expect(as("bob", (m) => call(m.freezer.rename({ freezerId: "f1", name: "Garage" })))).rejects.toThrow(/owner/);
+    await expect(as("eve", (m) => call(m.freezer.rename({ freezerId: "f1", name: "Garage" })))).rejects.toThrow(/No access/);
+    await as("alice", (m) => call(m.freezer.rename({ freezerId: "f1", name: "  Garage " })));
+    expect((await zdb.run(zql.freezer.where("id", "f1").one()))?.name).toBe("Garage");
+  });
+
   it("owner can remove a member but not themselves", async () => {
     await expect(as("alice", (m) => call(m.member.remove({ freezerId: "f1", userId: "alice" })))).rejects.toThrow(
       /owner/,

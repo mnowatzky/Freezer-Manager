@@ -7,7 +7,7 @@ import { parseImport, type ParsedImport } from "@freezer/shared/import";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { FullScreenLoading } from "../components/AuthedLayout";
-import { Button, Icon, IconButton, ListGroup, ListItem, Switch, TopAppBar } from "../components/m3";
+import { Button, Icon, IconButton, ListGroup, ListItem, Sheet, Switch, TextField, TopAppBar } from "../components/m3";
 import { authClient, signOut } from "../lib/auth-client";
 import { formatDate } from "../lib/format";
 import { useFreezerData, type FreezerDetail } from "../lib/freezer-data";
@@ -37,6 +37,7 @@ function Settings({ freezer, userId, onSwitchFreezer }: { freezer: FreezerDetail
   const [now] = useState(() => Date.now());
   const invites = (allInvites ?? []).filter((i) => i.expiresAt > now);
   const [creating, setCreating] = useState(false);
+  const [renaming, setRenaming] = useState(false);
 
   const createInvite = async () => {
     setCreating(true);
@@ -130,10 +131,21 @@ function Settings({ freezer, userId, onSwitchFreezer }: { freezer: FreezerDetail
 
         <section>
           <ListGroup>
+            {isOwner && (
+              <ListItem
+                leading={<Icon name="edit" className="text-primary" />}
+                headline={t.settings.renameFreezer}
+                supporting={freezer.name}
+                onClick={() => setRenaming(true)}
+              />
+            )}
             <ListItem leading={<Icon name="print" className="text-primary" />} headline={t.settings.labels} onClick={() => void navigate("/labels")} />
             <ListItem leading={<Icon name="add" className="text-primary" />} headline={t.freezer.newFreezer} onClick={() => void navigate("/setup")} />
             <ListItem leading={<Icon name="logout" className="text-primary" />} headline={t.auth.signOut} onClick={() => void signOut()} />
           </ListGroup>
+          <Sheet open={renaming} title={t.settings.renameFreezer} onClose={() => setRenaming(false)}>
+            <RenameFreezer freezer={freezer} onDone={() => setRenaming(false)} />
+          </Sheet>
         </section>
 
         <section>
@@ -170,6 +182,31 @@ function Settings({ freezer, userId, onSwitchFreezer }: { freezer: FreezerDetail
         <VersionInfo />
       </div>
     </div>
+  );
+}
+
+function RenameFreezer({ freezer, onDone }: { freezer: FreezerDetail; onDone: () => void }) {
+  const mutate = useMutate();
+  const canWrite = useCanWrite();
+  const [name, setName] = useState(freezer.name);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (await mutate(mutators.freezer.rename({ freezerId: freezer.id, name: name.trim() }))) onDone();
+  };
+
+  return (
+    <form onSubmit={(e) => void submit(e)} className="flex flex-col gap-4">
+      <TextField label={t.setup.name} value={name} autoFocus maxLength={100} leadingIcon="kitchen" onChange={(e) => setName(e.target.value)} />
+      <div className="flex justify-end gap-2 pt-2">
+        <Button type="button" variant="text" onClick={onDone}>
+          {t.common.cancel}
+        </Button>
+        <Button type="submit" icon="check" disabled={!name.trim() || name.trim() === freezer.name || !canWrite}>
+          {t.common.save}
+        </Button>
+      </div>
+    </form>
   );
 }
 
