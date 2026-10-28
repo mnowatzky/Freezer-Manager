@@ -150,6 +150,7 @@ export const en: Messages = {
     copyLink: "Copy link",
     copied: "Copied!",
     leave: "Leave freezer",
+    renameFreezer: "Rename freezer",
     deleteFreezer: "Delete freezer",
     confirmDelete: "Really delete? All items will be lost.",
     labels: "Print QR labels",

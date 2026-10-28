@@ -95,6 +95,11 @@ export const mutators = defineMutators({
       },
     ),
 
+    rename: defineMutator(z.object({ freezerId: id, name }), async ({ tx, ctx, args }) => {
+      await requireRole(tx, ctx, args.freezerId, "owner");
+      await tx.mutate.freezer.update({ id: args.freezerId, name: args.name });
+    }),
+
     delete: defineMutator(z.object({ freezerId: id }), async ({ tx, ctx, args }) => {
       await requireRole(tx, ctx, args.freezerId, "owner");
       const f = args.freezerId;

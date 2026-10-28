@@ -155,6 +155,7 @@ export const de = {
     copyLink: "Link kopieren",
     copied: "Kopiert!",
     leave: "Gefrierschrank verlassen",
+    renameFreezer: "Gefrierschrank umbenennen",
     deleteFreezer: "Gefrierschrank löschen",
     confirmDelete: "Wirklich löschen? Alle Einträge gehen verloren.",
     labels: "QR-Etiketten drucken",
